@@ -1,0 +1,47 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+app/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+
+# Signing keys
+*.jks
+*.keystore
+debug.keystore
+
+# Built artifacts
+*.apk
+*.aab
+
+# JVM crash & replay logs
+hs_err_*.log
+replay_pid*.log
+
+# Logcat dumps
+logcat_*.txt
+
+# Temp/scratch directories
+/scratch
+/temp_check_dep*
+/testing
+
+# Misc dumps
+*_dump.txt
+project_files.txt
+deps.txt
+test-output.txt
+stage6-info.txt
+patch*.py

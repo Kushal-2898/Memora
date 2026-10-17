@@ -1,0 +1,7 @@
+{
+  "name": "Memora",
+  "description": "Visual memory application — capture it, choose when to remember it, and Memora remembers until you do it.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

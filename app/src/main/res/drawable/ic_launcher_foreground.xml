@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Camera/Lens Rounded Rect Frame -->
+    <path
+        android:pathData="M38,32 H70 A8,8 0 0,1 78,40 V68 A8,8 0 0,1 70,76 H38 A8,8 0 0,1 30,40 V40 A8,8 0 0,1 38,32 Z"
+        android:strokeColor="#EEF2F6"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Visual Memory Center Iris / Ring -->
+    <path
+        android:pathData="M54,44 A10,10 0 1,0 54,64 A10,10 0 1,0 54,44"
+        android:strokeColor="#6366F1"
+        android:strokeWidth="3" />
+    <!-- Glowing Focus Center Node -->
+    <path
+        android:pathData="M54,50 A4,4 0 1,0 54,58 A4,4 0 1,0 54,50"
+        android:fillColor="#818CF8" />
+    <!-- Small viewfinder accent notch -->
+    <path
+        android:pathData="M48,28 H60"
+        android:strokeColor="#EEF2F6"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+</vector>
+

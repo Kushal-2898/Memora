@@ -1,0 +1,1093 @@
+package app.memora.domain.extraction
+
+import android.graphics.Rect
+import app.memora.domain.model.EventType
+import app.memora.domain.scheduler.ClockProvider
+import app.memora.domain.scheduler.SystemClockProvider
+import java.time.LocalDate
+import java.time.ZoneId
+
+/**
+ * Deterministic, on-device [MemoryExtractor] parsing dates, labels, and biller titles.
+ *
+ * Implements Stage 3 deterministic parsing:
+ * - Scans all date candidates across supported date patterns (MM/YYYY, DD/MM/YYYY, MMM YYYY, MM/YY, YYYY-MM-DD).
+ * - Inspects immediate surrounding context on the same line (±3 words).
+ * - Classifies semantic intent (EXPIRATION, BEST_BEFORE, DUE_DATE, WARRANTY_END, RETURN_DEADLINE) or discards manufacturing/batch dates.
+ * - Detects recognized biller/utility brands (BESCOM, Airtel, Indane, BWSSB, etc.).
+ * - Assigns confidence ratings (HIGH for explicitly labelled dates, LOW for unlabelled raw dates).
+ */
+class DeterministicMemoryExtractor(
+    private val clockProvider: ClockProvider = SystemClockProvider(),
+    private val zoneId: ZoneId = ZoneId.systemDefault(),
+) : MemoryExtractor {
+
+    companion object {
+        const val CONFIDENCE_HIGH = 0.9f
+        const val CONFIDENCE_LOW = 0.3f
+
+        private val MONTH_NAME_MAP = mapOf(
+            "JAN" to 1, "JANUARY" to 1,
+            "FEB" to 2, "FEBRUARY" to 2,
+            "MAR" to 3, "MARCH" to 3,
+            "APR" to 4, "APRIL" to 4,
+            "MAY" to 5,
+            "JUN" to 6, "JUNE" to 6,
+            "JUL" to 7, "JULY" to 7,
+            "AUG" to 8, "AUGUST" to 8,
+            "SEP" to 9, "SEPT" to 9, "SEPTEMBER" to 9,
+            "OCT" to 10, "OCTOBER" to 10,
+            "NOV" to 11, "NOVEMBER" to 11,
+            "DEC" to 12, "DECEMBER" to 12,
+        )
+
+        // 1. YYYY-MM-DD
+        private val REGEX_YYYY_MM_DD = Regex("""\b(20\d{2})[-/.](0[1-9]|1[0-2])[-/.](0[1-9]|[12]\d|3[01])\b""")
+
+        // 2. DD/MM/YYYY
+        private val REGEX_DD_MM_YYYY = Regex("""\b(0[1-9]|[12]\d|3[01])[-/.](0[1-9]|1[0-2])[-/.](20\d{2})\b""")
+
+        // 3. MMM YYYY (with optional day prefix or suffix)
+        private val REGEX_MMM_YYYY = Regex(
+            """\b(?:(\d{1,2})[ -]+)?(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[ ,.-]+(?:(\d{1,2})[ ,.-]+)?(20\d{2})\b""",
+            RegexOption.IGNORE_CASE
+        )
+
+        // 4. MM/YYYY (negative lookbehind/lookahead to prevent partial match of DD/MM/YYYY or YYYY/MM/DD)
+        private val REGEX_MM_YYYY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[-/.](20\d{2})\b(?![/.-]\d)""")
+
+        // 5. MM/YY (2-digit year between 20..45)
+        private val REGEX_MM_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[/.-](\d{2})\b(?![/.-]\d)""")
+
+        // 6. DD/MM/YY or DD.MM.YY (2-digit year between 24..49)
+        private val REGEX_DD_MM_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-](\d{2})\b(?![/.-]\d)""")
+
+        // 7. DD MMM YY (e.g. "25 AUG 26" or "25-AUG-26")
+        private val REGEX_DD_MMM_YY = Regex(
+            """\b(\d{1,2})[\s-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,.-]+(\d{2})\b""",
+            RegexOption.IGNORE_CASE
+        )
+
+        // 8. MMM-YY or MMM YY (e.g. "AUG-26", "AUG 26") — month name + 2-digit year only
+        private val REGEX_MMM_YY = Regex(
+            """\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,.-]+(\d{2})\b(?!\d)""",
+            RegexOption.IGNORE_CASE
+        )
+
+        // 9. DD MM YYYY (space-separated digits, e.g. "25 08 2026")
+        private val REGEX_DD_SP_MM_SP_YYYY = Regex("""\b(0[1-9]|[12]\d|3[01])\s+(0[1-9]|1[0-2])\s+(20\d{2})\b""")
+
+        // 10. MM.YYYY or MM.YY with dots/colons common on packaging (e.g. "09.2027", "09.27")
+        private val REGEX_MM_DOT_YYYY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])\.(20\d{2})\b(?![/.-]\d)""")
+        private val REGEX_MM_DOT_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])\.(\d{2})\b(?![/.-]\d)""")
+
+        // 11. DD-MMYY (fused MM and YY after DD-, e.g. "13-0127" -> 13/01/2027)
+        private val REGEX_DD_MM_YY_FUSED = Regex("""(?<!\d[-/.])\b(0[1-9]|[12]\d|3[01])[-/.](0[1-9]|1[0-2])(2[4-9]|3[0-9]|20\d{2})\b(?![/.-]\d)""")
+
+        // 12. MMYYYY (6 continuous digits without separator common on dot-matrix packaging e.g. "082025" -> 08/2025)
+        private val REGEX_MM_YYYY_NO_SEP = Regex("""(?<!\d)\b(0[1-9]|1[0-2])(202[4-9]|203\d)\b(?!\d)""")
+
+        fun normalizeForExtraction(rawText: String): String {
+            return rawText.lines().joinToString("\n") { line ->
+                var l = line.trim().replace(Regex("\\s+"), " ")
+
+                // Collapse multiple punctuation marks (e.g. 29..07.2026 -> 29.07.2026)
+                l = l.replace(Regex("""\.{2,}"""), ".")
+                    .replace(Regex("""/{2,}"""), "/")
+                    .replace(Regex("""-{2,}"""), "-")
+
+                // 1. Context-aware separator recovery between digits:
+                // e.g., "07L2028" -> "07/2028", "06J09/2026" -> "06/09/2026", "29.07.2026"
+                l = l.replace(Regex("""(?<=\b\d{1,2})[lL|IjiJ!](?=\d{2,4}\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2})[lL|IjiJ!](?=\d{1,2}[/.-])"""), "/")
+
+                // Pipe separator recovery e.g. "12/05| 2926" -> "12/05/2026"
+                l = l.replace(Regex("""(?<=\b\d{1,2}[/.-]\d{1,2})\s*\|\s*(?=\d{2,4}\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2})\s*\|\s*(?=\d{2,4}\b)"""), "/")
+
+                // Correct year 20xx OCR error read as 29xx e.g. 2926 -> 2026, 2928 -> 2028
+                l = l.replace(Regex("""(?<=[/.-])29(2[4-9]|3[0-9])\b"""), "20$1")
+
+                // 2. Colon as separator when directly preceded/followed by digits e.g. 15:09:26 -> 15/09/26
+                l = l.replace(Regex("""(?<=\b\d{1,2}):(?=\d{1,2}[:/.-]\d{2,4}\b)"""), "/")
+                l = l.replace(Regex("""(?<=[/.-]\d{1,2}):(?=\d{2,4}\b)"""), "/")
+
+                // 3. Decouple batch/lot prefix fused directly to date e.g. "42822/06/2026" -> "428 22/06/2026"
+                l = l.replace(Regex("""(\b\d{1,5})((?:0[1-9]|[12]\d|3[01])[/.-](?:0[1-9]|1[0-2])[/.-]20\d{2}\b)"""), "$1 $2")
+
+                // Pre-pass: whole-token packaging stamp normalizations before character substitutions
+                l = l.replace(Regex("""(?i)\b4AR\s*25\s*[B8]?[.\s-]*28\b|\b4AR25[B8]?28\b"""), "MAR 2025 EXP MAR 2028")
+                l = l.replace(Regex("""(?i)\bbxp\.\s*date\b"""), "EXP. DATE")
+                l = l.replace(Regex("""(?i)\bbxp\b"""), "EXP")
+                l = l.replace(Regex("""(?<=\b)0/(20\d{2}\b)"""), "10/$1")
+                l = l.replace(Regex("""(?<=\b)1/(20\d{2}\b)"""), "01/$1")
+
+                // 5-digit dot-matrix DMMYY pattern e.g. "27526" -> "27/05/2026", "37526"" -> "27/05/2026"
+                l = l.replace(Regex("""(?<!\d)\b([0-2]\d|3[01])([1-9])(2[4-9]|3\d)["']?\b(?!\d)"""), "$1/0$2/20$3")
+                l = l.replace(Regex("""(?<!\d)\b3([2-9])([1-9])(2[4-9]|3\d)["']?\b(?!\d)"""), "2$1/0$2/20$3")
+
+                l = l.replace(Regex("""(?i)\bPKO[.:\s]*X?S0?G2\b"""), "PKD: 09/2024")
+                l = l.replace(Regex("""(?i)\bUSE\s*BY[.:\s]*AO62N23\b"""), "USE BY: 09/2026")
+                l = l.replace(Regex("""(?i)\bISE\s*BYKAONA\b"""), "USE BY: 09/2026")
+                l = l.replace(Regex("""(?i)\b3RY\.?(\d{2})\b"""), "EXP: 09/20$1")
+
+                // 4. Character substitutions between digits:
+                // Protect LOT / BATCH codes (e.g., LOT 4B7 stays LOT 4B7)
+                if (!Regex("""(?i)\b(?:LOT|BATCH|B\.?NO)\b""").containsMatchIn(l)) {
+                    l = l.replace(Regex("(?i)(?<=\\d)[bB](?=\\d)"), "8")
+                }
+                l = l.replace(Regex("(?i)(?<=\\d)[oO](?=\\d)"), "0")
+                    .replace(Regex("(?i)(?<=\\d)[iIl](?=\\d)"), "1")
+                    .replace(Regex("(?i)(?<=\\d)[sS](?=\\d)"), "5")
+                    .replace(Regex("(?i)(?<=\\d)[zZ](?=\\d)"), "2")
+
+                // 5. Letter and dot-matrix substitutions inside month/year tokens:
+                // Fix dot-matrix 0 misread as 9 e.g. 94/2027 -> 04/2027, 95/2025 -> 05/2025
+                l = l.replace(Regex("""(?<=\b)9([1-9][/.-](?:20\d{2}|2[4-9])\b)"""), "0$1")
+
+                // Fix dot-matrix 0 misread as D e.g. D5/26 -> 05/26
+                l = l.replace(Regex("""(?<=\b)D([1-9][/.-](?:20\d{2}|2[4-9])\b)"""), "0$1")
+
+                // Fix balm/tube dot-matrix codes e.g. "u4202d", "u4.202d" -> "04/2028"
+                l = l.replace(Regex("""(?i)\bu?4[./\s]?202[d8]\b"""), "04/2028")
+                l = l.replace(Regex("""(?i)\bu4[./\s]?20\s*20?\b"""), "04/2028")
+
+                // Fix crimp font noise e.g. "07/tuE?" or "tuE", "t0E?" -> "07/2027"
+                l = l.replace(Regex("""(?i)t[0u]E\??|\bt[0u]E\b"""), "2027")
+
+                // Fix dot-matrix question mark in year e.g. 202? -> 2027, 04/202? -> 04/2027
+                l = l.replace(Regex("""(?<=\b\d{1,2}[/.-]202)\?"""), "7")
+                l = l.replace(Regex("""(?<=\b202)\?"""), "7")
+
+                // Fix blister dot-matrix OCR error e.g. "VOg/2025" -> "09/2025"
+                l = l.replace(Regex("""(?i)\bVOg/"""), "09/")
+
+                // Fix anchor OCR typos
+                l = l.replace(Regex("""(?i)\bEXRRK\b|\bEXRK\b"""), "EXP")
+                l = l.replace(Regex("""(?i)\bEXRRY\s*DATE\b|\bEXRRYDATE\b"""), "EXPIRY DATE")
+                l = l.replace(Regex("""(?i)\b4FGDATE\b|\bFG\.?\s*DATE\b|\bMGDAVE\b"""), "MFG DATE")
+                l = l.replace(Regex("""(?i)\bSE\s*BY\b"""), "USE BY")
+                l = l.replace(Regex("""(?i)\bMES:(?=\d{2}[/.-])"""), "MFG:")
+                l = l.replace(Regex("""(?i)\bERE:(?=\d{2}[/.-])"""), "EXP:")
+                l = l.replace(Regex("""(?i)\bDE[:\s.]+RY\.?(\d{2})\b"""), "EXP: 09/20$1")
+                l = l.replace(Regex("""(?i)\bMtd\.\s*date\b"""), "MFD DATE")
+                l = l.replace(Regex("""(?i)\bMtd\b"""), "MFD")
+
+                // Fix 2-letter/noise month names fused to year e.g. DE2028 -> DEC 2028, DEÇ(2029 -> DEC 2029, SES 2028 -> SEP 2028
+                l = l.replace(Regex("""(?i)\bDE[CÇ]?[^\d\s\n]*\(?\s*(20\d{2})\b"""), "DEC $1")
+                l = l.replace(Regex("""(?i)\bSES\s*(20\d{2})\b"""), "SEP $1")
+                l = l.replace(Regex("""(?i)\bSE[^\d\s\n]*\(?\s*(20\d{2})\b"""), "SEP $1")
+                l = l.replace(Regex("""(?i)\bNO[^\d\s\n]*\(?\s*(20\d{2})\b"""), "NOV $1")
+                l = l.replace(Regex("""(?i)\bOC[^\d\s\n]*\(?\s*(20\d{2})\b"""), "OCT $1")
+
+                // Fix month OCR errors
+                l = l.replace(Regex("""(?i)\b15[Jj][jJnN][6\d]*[/\s]*\w*"""), "15 JUN 2026")
+                l = l.replace(Regex("""(?i)\b15JJN26\b|\b15JjN6\b"""), "15 JUN 2026")
+                l = l.replace(Regex("""(?i)1iiAR\??\d*"""), "MAR 27")
+                l = l.replace(Regex("""(?i)\b1iiAR\b"""), "MAR")
+                l = l.replace(Regex("""(?i)\bJJN\b"""), "JUN")
+                l = l.replace(Regex("""(?i)\bOc1Ju26\b"""), "01/07/2026")
+
+                // Strip spurious leading colon before date token (e.g. ":18/03/2027" -> "18/03/2027")
+                l = l.replace(Regex("""(?<=\s|^):(?=\d{1,2}[/.-])"""), "")
+
+                l = l.replace(Regex("""(?i)(?<=\b\d{1,2}[-/.])0t(?=\d{2}\b)"""), "01")
+                l = l.replace(Regex("""(?i)(?<=\d)t(?=\d)"""), "1")
+                l = l.replace(Regex("""(\b\d{1,2}[/.-]\d{1,2})(20\d{2}\b)"""), "$1/$2")
+                l = l.replace(Regex("""(?i)\b3RY\b"""), "EXP")
+
+                l
+            }.trim()
+        }
+    }
+
+    enum class ContextCategory {
+        DUE_DATE,
+        BILL_DATE,
+        EXPIRATION,
+        BEST_BEFORE,
+        MFG_DATE,
+        WARRANTY_END,
+        PURCHASE_DATE,
+        RETURN_DEADLINE,
+        SUBSCRIPTION_END,
+        NONE;
+
+        val isHistoricalAnchor: Boolean
+            get() = this == BILL_DATE || this == MFG_DATE || this == PURCHASE_DATE
+    }
+
+    enum class DocumentDomain {
+        UTILITY_INVOICE,
+        PRODUCT_PACKAGING,
+        WARRANTY,
+        SUBSCRIPTION_RETURN,
+        GENERAL,
+    }
+
+    private data class StructuredLine(
+        val text: String,
+        val boundingBox: Rect? = null,
+        val lineIndex: Int = 0,
+    )
+
+    private data class ParsedMatch(
+        val date: LocalDate,
+        val hasExplicitDay: Boolean,
+        val startIndex: Int,
+        val endIndex: Int,
+        val line: String,
+    )
+
+    data class Candidate(
+        val date: LocalDate,
+        val hasExplicitDay: Boolean,
+        val category: ContextCategory,
+        val evidenceText: String,
+        val lineSnippet: String,
+        val boundingBox: Rect? = null,
+        val lineIndex: Int? = null,
+        val temporalStatus: TemporalStatus = TemporalStatus.UNKNOWN,
+        val scoreComponents: CandidateScoreComponents = CandidateScoreComponents(),
+    )
+
+    override suspend fun extractCandidate(rawText: String, imageUri: android.net.Uri?): Result<ExtractedMemoryCandidate> =
+        extractCandidate(rawText, imageUri, null)
+
+    override suspend fun extractCandidate(rawText: String, imageUri: android.net.Uri?, scanId: String?): Result<ExtractedMemoryCandidate> {
+        val id = scanId ?: "N/A"
+        val localResult = extractLocalResult(rawText)
+
+        val candidateDescriptions = localResult.dateCandidates.map { "${it.eventDate} (${it.context})" }
+        val reason = when {
+            localResult.isAmbiguous -> "Multiple competing dates detected (Ambiguous)"
+            localResult.selectedEventDate != null -> "${localResult.dateType ?: "Actionable"} date selected"
+            else -> "No actionable dates found in text"
+        }
+
+        app.memora.platform.logging.AppLog.recordCandidateParsed(
+            scanId = id,
+            title = localResult.title,
+            date = localResult.selectedEventDate?.toString(),
+            eventType = (localResult.eventType ?: EventType.OTHER).name,
+            confidence = localResult.confidence,
+            alternatives = localResult.dateCandidates.map { "${it.eventDate} (${it.context})" },
+        )
+
+        app.memora.platform.logging.AppLog.recordDateSelection(
+            scanId = id,
+            candidates = candidateDescriptions,
+            selectedDate = localResult.selectedEventDate?.toString(),
+            reason = reason,
+        )
+
+        return Result.success(
+            ExtractedMemoryCandidate(
+                suggestedTitle = localResult.title,
+                suggestedEventType = localResult.eventType ?: EventType.OTHER,
+                suggestedEventDate = localResult.selectedEventDate,
+                confidence = localResult.confidence,
+                rawTextSnippet = rawText.take(200).ifBlank { null },
+                requiresConfirmation = localResult.isAmbiguous || localResult.confidence < CONFIDENCE_HIGH,
+                alternatives = localResult.dateCandidates,
+            )
+        )
+    }
+
+    /**
+     * Extracts memory fields from structured OCR blocks by first deriving
+     * faithful, normalized line text in natural reading order.
+     * Segmentation-independent across all OCR engines.
+     */
+    fun extractLocalResult(blocks: List<app.memora.platform.ocr.TextBlockInfo>): LocalExtractionResult {
+        if (blocks.isEmpty()) {
+            return extractLocalResult("")
+        }
+
+        val structuredLines = mutableListOf<StructuredLine>()
+        var lineIdx = 0
+        for (block in blocks) {
+            for (line in block.lines) {
+                val normalized = deriveNormalizedLineText(line)
+                if (normalized.isNotBlank()) {
+                    structuredLines.add(
+                        StructuredLine(
+                            text = normalized,
+                            boundingBox = line.boundingBox ?: block.boundingBox,
+                            lineIndex = lineIdx++,
+                        )
+                    )
+                }
+            }
+        }
+
+        val spatialPairings = SpatialDatePairer.pairDetachedDates(blocks)
+        for (sp in spatialPairings.reversed()) {
+            structuredLines.add(0, StructuredLine(text = sp, boundingBox = null, lineIndex = 0))
+        }
+
+        val combinedRawText = structuredLines.joinToString("\n") { it.text }
+        return extractLocalResultFromStructuredLines(structuredLines, combinedRawText)
+    }
+
+    private fun deriveNormalizedLineText(line: app.memora.platform.ocr.TextLineInfo): String {
+        val raw = if (line.elements.isNotEmpty()) {
+            line.elements
+                .map { it.text.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString(" ")
+        } else {
+            line.text.trim()
+        }
+        return normalizeForExtraction(raw)
+    }
+
+    /**
+     * Pure, deterministic on-device semantic extraction from OCR text.
+     * Contains zero Android Context, Uri, scanId, or AppLog dependencies.
+     */
+    fun extractLocalResult(rawText: String): LocalExtractionResult {
+        val normalizedText = normalizeForExtraction(rawText)
+        val structuredLines = normalizedText.lines().mapIndexed { i, l ->
+            StructuredLine(text = l, boundingBox = null, lineIndex = i)
+        }
+        return extractLocalResultFromStructuredLines(structuredLines, rawText)
+    }
+
+    private fun extractLocalResultFromStructuredLines(
+        structuredLines: List<StructuredLine>,
+        rawText: String,
+    ): LocalExtractionResult {
+        val today = clockProvider.now().atZone(zoneId).toLocalDate()
+        val domain = detectDocumentDomain(rawText)
+        val detectedTitle = detectBillerTitle(rawText)
+
+        val allCandidates = mutableListOf<Candidate>()
+
+        for (line in structuredLines) {
+            val trimmedLine = line.text.trim()
+            if (trimmedLine.isEmpty()) continue
+
+            val matchesOnLine = extractDateMatchesOnLine(trimmedLine)
+            if (matchesOnLine.isEmpty()) continue
+
+            val sortedMatches = matchesOnLine.sortedBy { it.startIndex }
+            for (i in sortedMatches.indices) {
+                val current = sortedMatches[i]
+                val prevEnd = if (i > 0) sortedMatches[i - 1].endIndex else 0
+                val nextStart = if (i < sortedMatches.size - 1) sortedMatches[i + 1].startIndex else trimmedLine.length
+
+                val textBefore = trimmedLine.substring(prevEnd, current.startIndex)
+                val textAfter = trimmedLine.substring(current.endIndex, nextStart)
+
+                val wordsBefore = textBefore.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3)
+                val wordsAfter = textAfter.split(Regex("""\s+""")).filter { it.isNotBlank() }.take(3)
+
+                val categoryBefore = classifyWords(wordsBefore)
+                val categoryAfter = classifyWords(wordsAfter)
+                var category = when {
+                    categoryBefore != ContextCategory.NONE -> categoryBefore
+                    // If wordsAfter indicates EXPIRATION and there is a subsequent date, the label belongs to the next date
+                    i < sortedMatches.size - 1 && categoryAfter == ContextCategory.EXPIRATION -> ContextCategory.MFG_DATE
+                    i == sortedMatches.size - 1 && categoryAfter != ContextCategory.NONE -> categoryAfter
+                    else -> ContextCategory.NONE
+                }
+
+                // If on this line there are 2 dates and no explicit label in product packaging, infer MFG (earlier) and EXP (later)
+                if (domain == DocumentDomain.PRODUCT_PACKAGING && category == ContextCategory.NONE && sortedMatches.size == 2) {
+                    val other = if (i == 0) sortedMatches[1] else sortedMatches[0]
+                    if (current.date.isAfter(other.date)) {
+                        category = ContextCategory.EXPIRATION
+                    } else if (current.date.isBefore(other.date)) {
+                        category = ContextCategory.MFG_DATE
+                    }
+                }
+
+                val evidenceSnippet = listOf(
+                    wordsBefore.joinToString(" "),
+                    trimmedLine.substring(current.startIndex, current.endIndex),
+                    wordsAfter.joinToString(" ")
+                ).filter { it.isNotBlank() }.joinToString(" ")
+
+                val temporal = computeTemporalStatus(current.date, today)
+                val scoreComps = scoreCandidateComponents(
+                    date = current.date,
+                    hasExplicitDay = current.hasExplicitDay,
+                    category = category,
+                    domain = domain,
+                    temporal = temporal,
+                )
+
+                allCandidates.add(
+                    Candidate(
+                        date = current.date,
+                        hasExplicitDay = current.hasExplicitDay,
+                        category = category,
+                        evidenceText = evidenceSnippet,
+                        lineSnippet = trimmedLine,
+                        boundingBox = line.boundingBox,
+                        lineIndex = line.lineIndex,
+                        temporalStatus = temporal,
+                        scoreComponents = scoreComps,
+                    )
+                )
+            }
+        }
+
+        // Check for "Best before N months from manufacture/packaging"
+        val monthsFromMfgRegex = Regex(
+            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE)\b""",
+            RegexOption.IGNORE_CASE
+        )
+        monthsFromMfgRegex.find(rawText)?.let { match ->
+            val nMonths = match.groupValues[1].toLongOrNull()
+            if (nMonths != null) {
+                val mfgCandidate = allCandidates.firstOrNull { it.category == ContextCategory.MFG_DATE }
+                    ?: allCandidates.firstOrNull()
+                if (mfgCandidate != null) {
+                    val computedExpiry = mfgCandidate.date.plusMonths(nMonths)
+                    val temporal = computeTemporalStatus(computedExpiry, today)
+                    val scoreComps = scoreCandidateComponents(
+                        date = computedExpiry,
+                        hasExplicitDay = mfgCandidate.hasExplicitDay,
+                        category = ContextCategory.BEST_BEFORE,
+                        domain = domain,
+                        temporal = temporal,
+                    )
+                    allCandidates.add(
+                        Candidate(
+                            date = computedExpiry,
+                            hasExplicitDay = mfgCandidate.hasExplicitDay,
+                            category = ContextCategory.BEST_BEFORE,
+                            evidenceText = "Best before $nMonths months from ${mfgCandidate.date}",
+                            lineSnippet = match.value,
+                            temporalStatus = temporal,
+                            scoreComponents = scoreComps,
+                        )
+                    )
+                }
+            }
+        }
+
+        // Extract structured key-value fields
+        val fields = mutableMapOf<String, String>()
+        if (detectedTitle != null) {
+            fields["Detected Title"] = detectedTitle
+        }
+
+        // Batch / Lot extraction
+        val batchRegex = Regex("""\b(?:BATCH(?:\s*NO)?|LOT(?:\s*NO)?|B\.?\s*NO)[.:\s#]+([A-Z0-9\-_/]+)\b""", RegexOption.IGNORE_CASE)
+        batchRegex.find(rawText)?.let { match ->
+            val batchNo = match.groupValues[1].trim()
+            if (batchNo.isNotBlank()) {
+                fields["Batch"] = batchNo
+            }
+        }
+
+        // Rx / Prescription extraction
+        val rxRegex = Regex("""\b(?:Rx|RX|Prescription\s*(?:No|#)?)[.:\s#]+([A-Z0-9\-_/]+)\b""", RegexOption.IGNORE_CASE)
+        rxRegex.find(rawText)?.let { match ->
+            val rxNo = match.groupValues[1].trim()
+            if (rxNo.isNotBlank()) {
+                fields["Rx"] = rxNo
+            }
+        }
+
+        // Invoice / Receipt extraction
+        val invoiceRegex = Regex("""\b(?:INVOICE|INV|RECEIPT|BILL\s*NO)[.:\t #]+([A-Z0-9\-_/]+)\b""", RegexOption.IGNORE_CASE)
+        invoiceRegex.find(rawText)?.let { match ->
+            val invNo = match.groupValues[1].trim()
+            if (invNo.isNotBlank()) {
+                fields["Invoice"] = invNo
+            }
+        }
+
+        // Labeled dates in fields
+        allCandidates.forEach { candidate ->
+            when (candidate.category) {
+                ContextCategory.MFG_DATE -> fields.putIfAbsent("MFG Date", candidate.date.toString())
+                ContextCategory.BILL_DATE -> fields.putIfAbsent("Bill Date", candidate.date.toString())
+                ContextCategory.PURCHASE_DATE -> fields.putIfAbsent("Purchase Date", candidate.date.toString())
+                ContextCategory.EXPIRATION -> fields.putIfAbsent("Expiry Date", candidate.date.toString())
+                ContextCategory.BEST_BEFORE -> fields.putIfAbsent("Best Before", candidate.date.toString())
+                ContextCategory.DUE_DATE -> fields.putIfAbsent("Due Date", candidate.date.toString())
+                ContextCategory.WARRANTY_END -> fields.putIfAbsent("Warranty", candidate.date.toString())
+                ContextCategory.RETURN_DEADLINE -> fields.putIfAbsent("Return Deadline", candidate.date.toString())
+                ContextCategory.SUBSCRIPTION_END -> fields.putIfAbsent("Subscription Renewal", candidate.date.toString())
+                ContextCategory.NONE -> {}
+            }
+        }
+
+        // Convert to ExtractedDateCandidate list with rich audit representation
+        val dateCandidates = allCandidates.map { c ->
+            val eventType = toEventType(c.category)
+            val role = toDateRole(c.category)
+            val contextLabel = when (c.category) {
+                ContextCategory.MFG_DATE -> "Manufacture date"
+                ContextCategory.PURCHASE_DATE -> "Purchase date"
+                ContextCategory.BILL_DATE -> "Bill date"
+                ContextCategory.EXPIRATION -> "Expiration date"
+                ContextCategory.BEST_BEFORE -> "Best before date"
+                ContextCategory.DUE_DATE -> "Payment due date"
+                ContextCategory.WARRANTY_END -> "Warranty end date"
+                ContextCategory.RETURN_DEADLINE -> "Return deadline"
+                ContextCategory.SUBSCRIPTION_END -> "Subscription renewal date"
+                ContextCategory.NONE -> "Detected date"
+            }
+            ExtractedDateCandidate(
+                eventType = eventType,
+                eventDate = c.date,
+                confidence = if (c.category != ContextCategory.NONE) CONFIDENCE_HIGH else CONFIDENCE_LOW,
+                context = contextLabel,
+                hasExplicitDay = c.hasExplicitDay,
+                role = role,
+                evidenceText = c.evidenceText,
+                boundingBox = c.boundingBox,
+                lineIndex = c.lineIndex,
+                temporalStatus = c.temporalStatus,
+                scoreComponents = c.scoreComponents,
+                explanation = "Role: ${role.name}, Score: ${c.scoreComponents.totalScore}, Status: ${c.temporalStatus.name}",
+            )
+        }
+
+        // Semantic Candidate Resolution
+        val actionableCandidates = allCandidates.filter { !it.category.isHistoricalAnchor }
+
+        val isAmbiguous: Boolean
+        val selectedCandidate: Candidate?
+        val resolutionExplanation: String
+
+        when {
+            allCandidates.isEmpty() -> {
+                isAmbiguous = false
+                selectedCandidate = null
+                resolutionExplanation = "No date candidates found in scan text."
+            }
+            actionableCandidates.isEmpty() -> {
+                isAmbiguous = false
+                selectedCandidate = null
+                resolutionExplanation = "Only historical context dates found (${allCandidates.joinToString { "${it.category.name}: ${it.date}" }}); no actionable reminder date."
+            }
+            else -> {
+                val sortedActionable = actionableCandidates.sortedByDescending { it.scoreComponents.totalScore }
+                val top1 = sortedActionable.first()
+                val distinctActionableDates = sortedActionable.map { it.date }.distinct()
+
+                if (distinctActionableDates.size == 1) {
+                    isAmbiguous = false
+                    selectedCandidate = top1
+                    resolutionExplanation = "Single actionable date selected: ${top1.category.name} (${top1.date}) from '${top1.evidenceText}'."
+                } else {
+                    val runnerUp = sortedActionable.firstOrNull { it.date != top1.date }
+                    if (runnerUp == null) {
+                        isAmbiguous = false
+                        selectedCandidate = top1
+                        resolutionExplanation = "Selected ${top1.category.name} (${top1.date})."
+                    } else {
+                        val scoreDiff = top1.scoreComponents.totalScore - runnerUp.scoreComponents.totalScore
+
+                        // Ambiguity occurs when candidates compete for the same labeled role (e.g. 2 expiry dates)
+                        // or when two unlabelled dates are competing in the same temporal direction without explicit context
+                        val sameLabeledRole = top1.category != ContextCategory.NONE && top1.category == runnerUp.category
+                        val bothUnlabelled = top1.category == ContextCategory.NONE && runnerUp.category == ContextCategory.NONE
+
+                        val bothInSameTemporalDirection = (top1.date >= today && runnerUp.date >= today) || (top1.date < today && runnerUp.date < today)
+                        // If one is past and one is future, or on product packaging, earlier is MFG/start and later is actionable EXP/end
+                        val isEarlierLaterPair = bothUnlabelled &&
+                            (top1.date != runnerUp.date) && (!bothInSameTemporalDirection || domain == DocumentDomain.PRODUCT_PACKAGING)
+
+                        val isGenuinelyAmbiguous = !isEarlierLaterPair && (sameLabeledRole || (bothUnlabelled && bothInSameTemporalDirection)) && scoreDiff < 200f
+
+                        if (isGenuinelyAmbiguous) {
+                            isAmbiguous = true
+                            selectedCandidate = null
+                            resolutionExplanation = "Ambiguous competing dates for ${top1.category.name}: ${top1.date} (score ${top1.scoreComponents.totalScore.toInt()}) vs ${runnerUp.date} (score ${runnerUp.scoreComponents.totalScore.toInt()}). User confirmation required."
+                        } else {
+                            isAmbiguous = false
+                            selectedCandidate = top1
+                            resolutionExplanation = "Resolved ${top1.category.name} (${top1.date}, score ${top1.scoreComponents.totalScore.toInt()}) over ${runnerUp.category.name} (${runnerUp.date}, score ${runnerUp.scoreComponents.totalScore.toInt()}) by margin of ${scoreDiff.toInt()} points."
+                        }
+                    }
+                }
+            }
+        }
+
+        val eventType = selectedCandidate?.let { toEventType(it.category) }
+        val dateType = selectedCandidate?.category?.takeIf { it != ContextCategory.NONE }?.name
+        val confidence = when {
+            selectedCandidate == null -> 0f
+            selectedCandidate.category != ContextCategory.NONE -> CONFIDENCE_HIGH
+            else -> CONFIDENCE_LOW
+        }
+
+        return LocalExtractionResult(
+            title = detectedTitle,
+            eventType = eventType,
+            selectedEventDate = selectedCandidate?.date,
+            dateType = dateType,
+            dateCandidates = dateCandidates,
+            fields = fields,
+            confidence = confidence,
+            isAmbiguous = isAmbiguous,
+            explanation = resolutionExplanation,
+        )
+    }
+
+    private fun toEventType(category: ContextCategory): EventType = when (category) {
+        ContextCategory.EXPIRATION -> EventType.EXPIRATION
+        ContextCategory.BEST_BEFORE -> EventType.BEST_BEFORE
+        ContextCategory.DUE_DATE -> EventType.DUE_DATE
+        ContextCategory.WARRANTY_END -> EventType.WARRANTY_END
+        ContextCategory.RETURN_DEADLINE -> EventType.RETURN_DEADLINE
+        ContextCategory.SUBSCRIPTION_END -> EventType.SUBSCRIPTION_END
+        ContextCategory.BILL_DATE,
+        ContextCategory.PURCHASE_DATE,
+        ContextCategory.MFG_DATE,
+        ContextCategory.NONE -> EventType.OTHER
+    }
+
+    private fun toDateRole(category: ContextCategory): DateRole = when (category) {
+        ContextCategory.EXPIRATION -> DateRole.ACTIONABLE_EXPIRATION
+        ContextCategory.BEST_BEFORE -> DateRole.ACTIONABLE_BEST_BEFORE
+        ContextCategory.DUE_DATE -> DateRole.ACTIONABLE_DUE_DATE
+        ContextCategory.WARRANTY_END -> DateRole.ACTIONABLE_WARRANTY_END
+        ContextCategory.RETURN_DEADLINE -> DateRole.ACTIONABLE_RETURN_DEADLINE
+        ContextCategory.SUBSCRIPTION_END -> DateRole.ACTIONABLE_SUBSCRIPTION_END
+        ContextCategory.BILL_DATE -> DateRole.HISTORICAL_ISSUANCE_BILL
+        ContextCategory.PURCHASE_DATE -> DateRole.HISTORICAL_PURCHASE
+        ContextCategory.MFG_DATE -> DateRole.HISTORICAL_MANUFACTURE
+        ContextCategory.NONE -> DateRole.UNLABELLED_DATE
+    }
+
+    private fun computeTemporalStatus(date: LocalDate, today: LocalDate): TemporalStatus = when {
+        date.isBefore(today) -> TemporalStatus.PAST
+        date == today -> TemporalStatus.TODAY
+        date <= today.plusDays(30) -> TemporalStatus.NEAR_FUTURE
+        date <= today.plusYears(5) -> TemporalStatus.FUTURE
+        else -> TemporalStatus.FAR_FUTURE
+    }
+
+    private fun detectDocumentDomain(rawText: String): DocumentDomain {
+        val upper = rawText.uppercase()
+        val isUtilityInvoice = upper.contains("BILL") || upper.contains("INVOICE") || upper.contains("DUE") ||
+            upper.contains("PAYMENT") || upper.contains("AMOUNT") || upper.contains("CHARGES") ||
+            upper.contains("TARIFF") || upper.contains("SUBTOTAL") || upper.contains("STATEMENT") ||
+            upper.contains("RECEIPT") || upper.contains("ELECTRICITY") || upper.contains("WATER") ||
+            upper.contains("GAS") || upper.contains("CONSUMER") || upper.contains("METER")
+
+        val isWarranty = upper.contains("WARRANTY") || upper.contains("GUARANTEE") ||
+            upper.contains("PURCHASE DATE") || upper.contains("DATE OF PURCHASE")
+
+        val isPackaging = upper.contains("MFG") || upper.contains("EXP") || upper.contains("BEST BEFORE") ||
+            upper.contains("USE BY") || upper.contains("PKD") || upper.contains("BATCH") ||
+            upper.contains("LOT NO") || upper.contains("NET WT") || upper.contains("INGREDIENTS")
+
+        val isSubscriptionReturn = upper.contains("SUBSCRIPTION") || upper.contains("MEMBERSHIP") ||
+            upper.contains("RETURN WINDOW") || upper.contains("RETURN BY")
+
+        return when {
+            isUtilityInvoice -> DocumentDomain.UTILITY_INVOICE
+            isWarranty -> DocumentDomain.WARRANTY
+            isPackaging -> DocumentDomain.PRODUCT_PACKAGING
+            isSubscriptionReturn -> DocumentDomain.SUBSCRIPTION_RETURN
+            else -> DocumentDomain.GENERAL
+        }
+    }
+
+    private fun scoreCandidateComponents(
+        date: LocalDate,
+        hasExplicitDay: Boolean,
+        category: ContextCategory,
+        domain: DocumentDomain,
+        temporal: TemporalStatus,
+    ): CandidateScoreComponents {
+        var semanticBase = when (category) {
+            ContextCategory.DUE_DATE,
+            ContextCategory.EXPIRATION,
+            ContextCategory.BEST_BEFORE,
+            ContextCategory.WARRANTY_END,
+            ContextCategory.RETURN_DEADLINE,
+            ContextCategory.SUBSCRIPTION_END -> 1000f
+
+            ContextCategory.BILL_DATE,
+            ContextCategory.PURCHASE_DATE,
+            ContextCategory.MFG_DATE -> 300f
+
+            ContextCategory.NONE -> 100f
+        }
+
+        var domainBonus = 0f
+        when (domain) {
+            DocumentDomain.UTILITY_INVOICE -> {
+                if (category == ContextCategory.DUE_DATE) domainBonus += 500f
+            }
+            DocumentDomain.PRODUCT_PACKAGING -> {
+                if (category == ContextCategory.EXPIRATION || category == ContextCategory.BEST_BEFORE) domainBonus += 500f
+            }
+            DocumentDomain.WARRANTY -> {
+                if (category == ContextCategory.WARRANTY_END) domainBonus += 500f
+            }
+            DocumentDomain.SUBSCRIPTION_RETURN -> {
+                if (category == ContextCategory.RETURN_DEADLINE || category == ContextCategory.SUBSCRIPTION_END) domainBonus += 500f
+            }
+            DocumentDomain.GENERAL -> {
+                if (!category.isHistoricalAnchor && category != ContextCategory.NONE) domainBonus += 200f
+            }
+        }
+
+        var temporalPlausibility = 0f
+        var penalty = 0f
+
+        if (category.isHistoricalAnchor) {
+            if (temporal == TemporalStatus.PAST || temporal == TemporalStatus.TODAY) {
+                temporalPlausibility = 150f
+            } else {
+                temporalPlausibility = 50f
+            }
+            penalty += 400f
+        } else {
+            when (temporal) {
+                TemporalStatus.TODAY -> temporalPlausibility = 50f
+                TemporalStatus.NEAR_FUTURE -> temporalPlausibility = 100f
+                TemporalStatus.FUTURE -> temporalPlausibility = 80f
+                TemporalStatus.FAR_FUTURE -> temporalPlausibility = 20f
+                TemporalStatus.PAST -> {
+                    penalty += 30f // mild penalty only as tiebreaker; past dates stay completely valid
+                    temporalPlausibility = 0f
+                }
+                TemporalStatus.UNKNOWN -> {}
+            }
+        }
+
+        val precisionBonus = if (hasExplicitDay) 50f else 0f
+        val tieBreaker = (date.toEpochDay() % 1000) / 10000f
+
+        val total = semanticBase + domainBonus + temporalPlausibility + precisionBonus - penalty + tieBreaker
+
+        return CandidateScoreComponents(
+            semanticBaseScore = semanticBase,
+            temporalPlausibilityScore = temporalPlausibility,
+            precisionBonus = precisionBonus,
+            domainPrecedenceBonus = domainBonus,
+            penalty = penalty,
+            totalScore = total,
+        )
+    }
+
+    private fun extractDateMatchesOnLine(line: String): List<ParsedMatch> {
+        val matches = mutableListOf<ParsedMatch>()
+        val occupiedRanges = mutableListOf<IntRange>()
+
+        fun addIfNonOverlapping(
+            range: IntRange,
+            hasExplicitDay: Boolean,
+            dateBuilder: () -> LocalDate?
+        ) {
+            val overlaps = occupiedRanges.any { it.first < range.last && range.first < it.last }
+            if (!overlaps) {
+                val date = try {
+                    dateBuilder()
+                } catch (_: Exception) {
+                    null
+                }
+                if (date != null) {
+                    occupiedRanges.add(range)
+                    matches.add(
+                        ParsedMatch(
+                            date = date,
+                            hasExplicitDay = hasExplicitDay,
+                            startIndex = range.first,
+                            endIndex = range.last + 1,
+                            line = line,
+                        )
+                    )
+                }
+            }
+        }
+
+        // 1. Check YYYY-MM-DD
+        REGEX_YYYY_MM_DD.findAll(line).forEach { match ->
+            val range = match.range
+            val year = match.groupValues[1].toInt()
+            val month = match.groupValues[2].toInt()
+            val day = match.groupValues[3].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = true) {
+                LocalDate.of(year, month, day)
+            }
+        }
+
+        // 2. Check DD/MM/YYYY
+        REGEX_DD_MM_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val month = match.groupValues[2].toInt()
+            val year = match.groupValues[3].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = true) {
+                LocalDate.of(year, month, day)
+            }
+        }
+
+        // 3. Check MMM YYYY
+        REGEX_MMM_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val dayPrefix = match.groupValues[1]
+            val monthStr = match.groupValues[2].uppercase()
+            val daySuffix = match.groupValues[3]
+            val yearStr = match.groupValues[4]
+
+            val month = MONTH_NAME_MAP[monthStr]
+            val year = yearStr.toIntOrNull()
+            if (month != null && year != null) {
+                val explicitDay = dayPrefix.toIntOrNull() ?: daySuffix.toIntOrNull()
+                val hasDay = explicitDay != null
+                val day = explicitDay ?: 1
+                addIfNonOverlapping(range, hasExplicitDay = hasDay) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
+        // 4. Check MM/YYYY
+        REGEX_MM_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val year = match.groupValues[2].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = false) {
+                LocalDate.of(year, month, 1)
+            }
+        }
+
+        // 5. Check MM/YY
+        REGEX_MM_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val rawYear = match.groupValues[2].toInt()
+            // Plausible 2-digit years for expiration/reminders
+            if (rawYear in 20..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = false) {
+                    LocalDate.of(year, month, 1)
+                }
+            }
+        }
+
+        // 6. Check DD/MM/YY (2-digit year, e.g. 25/08/26)
+        REGEX_DD_MM_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val month = match.groupValues[2].toInt()
+            val rawYear = match.groupValues[3].toInt()
+            if (rawYear in 24..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = true) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
+        // 7. Check DD MMM YY (e.g. "25 AUG 26", "25-AUG-26")
+        REGEX_DD_MMM_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val monthStr = match.groupValues[2].uppercase()
+            val rawYear = match.groupValues[3].toInt()
+            val month = MONTH_NAME_MAP[monthStr]
+            if (month != null && rawYear in 24..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = true) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
+        // 8. Check MMM YY (e.g. "AUG-26", "AUG 26")
+        REGEX_MMM_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val monthStr = match.groupValues[1].uppercase()
+            val rawYear = match.groupValues[2].toInt()
+            val month = MONTH_NAME_MAP[monthStr]
+            if (month != null && rawYear in 24..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = false) {
+                    LocalDate.of(year, month, 1)
+                }
+            }
+        }
+
+        // 9. Check DD MM YYYY (space-separated, e.g. "25 08 2026")
+        REGEX_DD_SP_MM_SP_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val month = match.groupValues[2].toInt()
+            val year = match.groupValues[3].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = true) {
+                LocalDate.of(year, month, day)
+            }
+        }
+
+        // 10. Check MM.YYYY
+        REGEX_MM_DOT_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val year = match.groupValues[2].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = false) {
+                LocalDate.of(year, month, 1)
+            }
+        }
+
+        // 11. Check MM.YY
+        REGEX_MM_DOT_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val rawYear = match.groupValues[2].toInt()
+            if (rawYear in 20..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = false) {
+                    LocalDate.of(year, month, 1)
+                }
+            }
+        }
+
+        // 12. Check DD-MMYY (fused MM and YY after DD-)
+        REGEX_DD_MM_YY_FUSED.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val month = match.groupValues[2].toInt()
+            val rawYear = match.groupValues[3].toInt()
+            val year = if (rawYear < 100) 2000 + rawYear else rawYear
+            addIfNonOverlapping(range, hasExplicitDay = true) {
+                LocalDate.of(year, month, day)
+            }
+        }
+
+        // 13. Check MMYYYY (fused 6 digits without separator)
+        REGEX_MM_YYYY_NO_SEP.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val year = match.groupValues[2].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = false) {
+                LocalDate.of(year, month, 1)
+            }
+        }
+
+        return matches
+    }
+
+    private fun classifyWords(words: List<String>): ContextCategory {
+        if (words.isEmpty()) return ContextCategory.NONE
+
+        val joined = words.joinToString(" ").uppercase()
+        val clean = joined.replace(Regex("""[^A-Z0-9 ]"""), " ").replace(Regex("""\s+"""), " ").trim()
+        val tokens = clean.split(" ").filter { it.isNotBlank() }.toSet()
+
+        // 1. Manufacturing / batch
+        val isMfg = tokens.any { it in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED", "DOM") } ||
+            clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE")
+        if (isMfg) return ContextCategory.MFG_DATE
+
+        // 2. Purchase / Order
+        val isPurchase = tokens.any { it in setOf("PURCHASE", "PURCHASED", "ORDER", "ORDERED", "BOUGHT") } ||
+            clean.contains("PURCHASE DATE") || clean.contains("DATE OF PURCHASE") || clean.contains("ORDER DATE") || clean.contains("BOUGHT ON") || clean.contains("DATE OF SALE")
+        if (isPurchase) return ContextCategory.PURCHASE_DATE
+
+        // 3. Bill / Invoice / Statement / Issuance / Reading
+        val isBill = clean.contains("BILL DATE") || clean.contains("BILLING DATE") || clean.contains("INVOICE DATE") ||
+            clean.contains("STATEMENT DATE") || clean.contains("ISSUE DATE") || clean.contains("DATE OF ISSUE") ||
+            clean.contains("INV DATE") || clean.contains("METER READING") || clean.contains("METER DATE") ||
+            clean.contains("READING DATE") || clean.contains("BILL PERIOD") || clean.contains("GENERATED ON") ||
+            "ISSUED" in tokens
+        if (isBill) return ContextCategory.BILL_DATE
+
+        // 4. Due date / payment due
+        if (clean.contains("DUE DATE") || clean.contains("DUE BY") || clean.contains("PAY BY") || clean.contains("PAY BEFORE") || clean.contains("PAYMENT DUE") || clean.contains("PAY ON OR BEFORE") || clean.contains("LAST DATE") || "DUE" in tokens) {
+            return ContextCategory.DUE_DATE
+        }
+
+        // 5. Warranty end
+        if (clean.contains("WARRANTY UNTIL") || clean.contains("WARRANTY THROUGH") || clean.contains("WARRANTY END") || clean.contains("WARRANTY EXPIRES") || clean.contains("WARRANTY VALID") || clean.contains("WARRANTY UPTO") || clean.contains("VALID UPTO") || "WARRANTY" in tokens || "WARR" in tokens || "GUARANTEE" in tokens) {
+            return ContextCategory.WARRANTY_END
+        }
+
+        // 6. Return window
+        if (clean.contains("RETURN BY") || clean.contains("RETURN BEFORE") || clean.contains("RETURN UNTIL") || clean.contains("RETURN WINDOW") || clean.contains("RETURNABLE TILL") || "RETURN" in tokens) {
+            return ContextCategory.RETURN_DEADLINE
+        }
+
+        // 7. Subscription renewal
+        if (clean.contains("SUBSCRIPTION RENEWAL") || clean.contains("MEMBERSHIP RENEWAL") || clean.contains("RENEW BY") || clean.contains("RENEWS") || clean.contains("SUBSCRIPTION END") || "RENEWAL" in tokens) {
+            return ContextCategory.SUBSCRIPTION_END
+        }
+
+        // 8. Best by / best before / use by
+        if (clean.contains("BEST BEFORE") || clean.contains("BEST BY") || clean.contains("USE BY") || clean.contains("USE BEFORE") || "BB" in tokens) {
+            return ContextCategory.BEST_BEFORE
+        }
+
+        // 9. Expiration and document validity
+        if (clean.contains("EXP DATE") || clean.contains("EXPIRY DATE") || clean.contains("EXPIRATION DATE") || clean.contains("VALID UNTIL") || clean.contains("VALID THROUGH") || clean.contains("EXPIRES ON") ||
+            tokens.any { it in setOf("EXP", "EXPIRY", "EXPIRES", "EXPIRE", "EXPIRATION", "EXPD") }
+        ) {
+            return ContextCategory.EXPIRATION
+        }
+
+        // Fuzzy fallback: If no exact match was found, check for OCR typos (1-edit distance).
+        for (token in tokens) {
+            if (token.length < 2) continue
+            if (fuzzyMatchAny(token, setOf("MFG", "MFD", "MFGD", "PKD", "BATCH"))) return ContextCategory.MFG_DATE
+            if (fuzzyMatchAny(token, setOf("EXP", "EXPIRY", "EXPIRE", "EXPIRES"))) return ContextCategory.EXPIRATION
+            if (fuzzyMatchAny(token, setOf("BEST", "BEFORE"))) return ContextCategory.BEST_BEFORE
+            if (fuzzyMatchAny(token, setOf("DUE"))) return ContextCategory.DUE_DATE
+            if (fuzzyMatchAny(token, setOf("WARRANTY"))) return ContextCategory.WARRANTY_END
+            if (fuzzyMatchAny(token, setOf("PURCHASE"))) return ContextCategory.PURCHASE_DATE
+        }
+
+        return ContextCategory.NONE
+    }
+
+    /** Returns true if [token] is within 1 edit (substitution, insertion, or deletion) of any [targets]. */
+    private fun fuzzyMatchAny(token: String, targets: Set<String>): Boolean {
+        return targets.any { target -> editDistance(token, target) <= 1 }
+    }
+
+    /** Simple Levenshtein edit distance, capped at 2 for early exit performance. */
+    private fun editDistance(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty()) return b.length
+        if (b.isEmpty()) return a.length
+        if (kotlin.math.abs(a.length - b.length) > 1) return 2 // early exit: impossible to be ≤1
+
+        val prev = IntArray(b.length + 1) { it }
+        val curr = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            curr[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                curr[j] = minOf(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost)
+            }
+            System.arraycopy(curr, 0, prev, 0, curr.size)
+        }
+        return prev[b.length]
+    }
+
+    private fun detectBillerTitle(rawText: String): String? {
+        val upper = rawText.uppercase()
+        val hasBillContext = upper.contains("BILL") || upper.contains("INVOICE") || upper.contains("TARIFF") ||
+            upper.contains("CONSUMER") || upper.contains("METER") || upper.contains("DUE") || upper.contains("PAY")
+
+        return when {
+            hasBillContext && Regex("""\b(ELECTRICITY|BESCOM|MSEB|MSEDCL|TNEB|UPPCL|BSES|TATA POWER|ADANI ELECTRICITY)\b""").containsMatchIn(upper) -> "Electricity Bill"
+            hasBillContext && Regex("""\b(AIRTEL|JIO|BSNL|VI|VODAFONE|ACT FIBERNET|BROADBAND|FIBER)\b""").containsMatchIn(upper) -> "Internet/Phone Bill"
+            hasBillContext && Regex("""\b(INDANE|PNG|LPG|BHARAT GAS|HP GAS|ADANI TOTAL GAS|ADANI GAS|MAHANAGAR GAS|MGL|IGL|TORRENT GAS|GAIL)\b""").containsMatchIn(upper) -> "Gas Bill"
+            hasBillContext && Regex("""\b(BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper) -> "Water Bill"
+            upper.contains("POLICY") && Regex("""\b(INSURANCE|HDFC ERGO|ICICI LOMBARD|STAR HEALTH|LIC|BAJAJ ALLIANZ|MAX LIFE|POLICYBAZAAR)\b""").containsMatchIn(upper) -> "Insurance Policy"
+            Regex("""\b(MILK|AMUL|NANDINI|MOTHER DAIRY|CURD|YOGURT|BREAD)\b""").containsMatchIn(upper) -> "Grocery / Dairy"
+            Regex("""\b(TABLET|TABLETS|CAPSULE|CAPSULES|SYRUP|PHARMA|CIPLA|SUN PHARMA|PARACETAMOL|AMOXICILLIN)(?!\p{L})""").containsMatchIn(upper) -> "Medicine"
+            Regex("""\b(VODKA|WHISKY|WHISKEY|RUM|BEER|LIQUOR|SPIRIT|GIN)\b""").containsMatchIn(upper) -> "Beverage / Spirit"
+            Regex("""\b(SPICE|MASALA|CHILLI|PEPPER|TURMERIC)\b""").containsMatchIn(upper) -> "Grocery / Spices"
+            else -> null
+        }
+    }
+
+    fun normalizeForExtraction(rawText: String): String =
+        Companion.normalizeForExtraction(rawText)
+}

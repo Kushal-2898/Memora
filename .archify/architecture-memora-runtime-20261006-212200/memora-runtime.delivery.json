@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f04784b8-3b6c-4164-89e8-dbed46d48091",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Projects\\Memora\\.archify\\architecture-memora-runtime-20261006-212200\\candidate.json",
+  "output": "C:\\Projects\\Memora\\.archify\\architecture-memora-runtime-20261006-212200\\memora-runtime.html",
+  "specification": {
+    "sha256": "97b7fc37e544cb192f0f59762be57ab02cf38eab2eca84f2ed52a977e6992d36",
+    "bytes": 6272
+  },
+  "artifact": {
+    "sha256": "a84da90ffbf919919d073c128292b74aed7ee794839a31526999b0b38a0f1634",
+    "bytes": 770530
+  }
+}

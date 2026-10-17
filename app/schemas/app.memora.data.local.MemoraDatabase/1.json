@@ -1,0 +1,188 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "66d83e34a9cce6711f6e2748e4aafbd8",
+    "entities": [
+      {
+        "tableName": "memories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `eventTypeCode` TEXT NOT NULL, `eventDateEpochDay` INTEGER NOT NULL, `eventTimeNanoOfDay` INTEGER, `timeZoneId` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `updatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "eventTypeCode",
+            "columnName": "eventTypeCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventDateEpochDay",
+            "columnName": "eventDateEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventTimeNanoOfDay",
+            "columnName": "eventTimeNanoOfDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timeZoneId",
+            "columnName": "timeZoneId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMs",
+            "columnName": "updatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_memories_eventDateEpochDay",
+            "unique": false,
+            "columnNames": [
+              "eventDateEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_memories_eventDateEpochDay` ON `${TABLE_NAME}` (`eventDateEpochDay`)"
+          }
+        ]
+      },
+      {
+        "tableName": "reminders",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `memoryId` TEXT NOT NULL, `reminderStartDateEpochDay` INTEGER NOT NULL, `reminderTimeNanoOfDay` INTEGER, `statusCode` TEXT NOT NULL, `completedAtEpochMs` INTEGER, `createdAtEpochMs` INTEGER NOT NULL, `updatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`memoryId`) REFERENCES `memories`(`id`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memoryId",
+            "columnName": "memoryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderStartDateEpochDay",
+            "columnName": "reminderStartDateEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderTimeNanoOfDay",
+            "columnName": "reminderTimeNanoOfDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "statusCode",
+            "columnName": "statusCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMs",
+            "columnName": "completedAtEpochMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMs",
+            "columnName": "updatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_reminders_memoryId",
+            "unique": false,
+            "columnNames": [
+              "memoryId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reminders_memoryId` ON `${TABLE_NAME}` (`memoryId`)"
+          },
+          {
+            "name": "index_reminders_reminderStartDateEpochDay",
+            "unique": false,
+            "columnNames": [
+              "reminderStartDateEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reminders_reminderStartDateEpochDay` ON `${TABLE_NAME}` (`reminderStartDateEpochDay`)"
+          },
+          {
+            "name": "index_reminders_statusCode",
+            "unique": false,
+            "columnNames": [
+              "statusCode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_reminders_statusCode` ON `${TABLE_NAME}` (`statusCode`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "memories",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "memoryId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '66d83e34a9cce6711f6e2748e4aafbd8')"
+    ]
+  }
+}

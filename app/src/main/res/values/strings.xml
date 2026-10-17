@@ -1,0 +1,164 @@
+<resources>
+    <string name="app_name">Memora</string>
+    <string name="app_tagline">Capture it. Choose when to remember it. Memora remembers until you do it.</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_scanner">Scan</string>
+    <string name="nav_capture">Scan</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">Memora</string>
+    <string name="home_empty_title">Nothing to remember yet.</string>
+    <string name="home_empty_subtitle">Memora keeps track of visual memories and reminds you until you mark them done.</string>
+    <string name="home_action_capture">Scan</string>
+    <string name="section_due_today">Due Today</string>
+    <string name="section_reminder_active">Active Reminders</string>
+    <string name="section_overdue">Overdue</string>
+    <string name="section_upcoming">Upcoming</string>
+    <string name="badge_stage1">Stage 1 Foundation</string>
+    <string name="action_complete">Complete</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Capture & Scan Screen -->
+    <string name="capture_title">Scan &amp; Remember</string>
+    <string name="capture_subtitle">Scan an item or choose an image to extract dates automatically.</string>
+    <string name="capture_option_photo_title">Scan</string>
+    <string name="capture_option_photo_desc">Scan expiry dates, bills, receipts, or warranties</string>
+    <string name="capture_option_image_title">Choose Image</string>
+    <string name="capture_option_image_desc">Select a photo or screenshot from your device library</string>
+    <string name="capture_camera_permission_title">Camera Access Required</string>
+    <string name="capture_camera_permission_desc">Memora uses the camera to scan documents, expiry dates, and reminders on demand. Your photos are processed securely.</string>
+    <string name="capture_camera_permission_grant">Grant Camera Permission</string>
+    <string name="capture_camera_permission_settings">Open App Settings</string>
+    <string name="capture_camera_shutter">Take photo</string>
+    <string name="capture_camera_back">Back to capture options</string>
+    <string name="capture_camera_unavailable">Camera hardware is not available on this device.</string>
+    <string name="capture_preview_question">Does this look right?</string>
+    <string name="capture_action_continue">Continue</string>
+    <string name="capture_action_replace">Replace</string>
+    <string name="capture_action_retake">Retake</string>
+    <string name="capture_source_camera">Camera Photo</string>
+    <string name="capture_source_gallery">Device Image</string>
+    <string name="capture_source_screenshot">Imported Screenshot</string>
+    <string name="capture_confirmed_title">Image Ready for Extraction</string>
+    <string name="capture_confirmed_desc">Image reference saved and ready for Stage 3 processing.</string>
+    <string name="capture_action_new">Capture Another</string>
+    <string name="capture_error_title">Capture Encountered an Issue</string>
+    <string name="capture_error_retry">Try Again</string>
+    <string name="capture_error_dismiss">Dismiss</string>
+    <string name="capture_processing">Processing image…</string>
+    <string name="capture_torch_on">Turn off flash</string>
+    <string name="capture_torch_off">Turn on flash</string>
+    <string name="capture_auto_snap_on">Auto: ON</string>
+    <string name="capture_auto_snap_off">Auto: OFF</string>
+    <string name="capture_guidance_align">Align bill, receipt, or expiry date in frame</string>
+    <string name="capture_guidance_detected">Document detected — Hold steady…</string>
+    <string name="capture_guidance_capturing">Capturing…</string>
+    <string name="capture_discard_dialog_title">Discard memory?</string>
+    <string name="capture_discard_dialog_message">Are you sure you want to discard this extracted memory? Your captured photo and extracted details will not be saved.</string>
+    <string name="scanner_title">Scanner</string>
+    <string name="scanner_guidance_align">Align document, bill, or expiry date in frame</string>
+    <string name="scanner_guidance_detected">Document detected — scanning…</string>
+    <string name="scanner_guidance_extracting">Extracting details locally…</string>
+    <string name="scanner_option_gallery">Import from device</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_keep_editing">Keep Editing</string>
+
+    <!-- History Screen -->
+    <string name="history_title">History</string>
+    <string name="history_empty_title">No completed memories yet.</string>
+    <string name="history_empty_subtitle">When you mark a reminder completed, it will appear here in your visual archive.</string>
+    <string name="action_restore">Restore</string>
+    <string name="history_restored_snackbar">\"%1$s\" restored to active reminders</string>
+    <string name="action_undo">Undo</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Preferences and application status</string>
+    <string name="settings_section_reminders">Reminder Engine</string>
+    <string name="settings_default_time_title">Default Reminder Time</string>
+    <string name="settings_default_time_desc">Morning (09:00 local time)</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_notifications_title">Notification Delivery</string>
+    <string name="settings_notifications_desc">Reliable morning alarms scheduled directly with Android AlarmManager.</string>
+    <string name="settings_section_privacy">Privacy &amp; Data Protection (DPDPA 2023)</string>
+    <string name="settings_privacy_title">100% On-Device Privacy &amp; Data</string>
+    <string name="settings_privacy_desc">Memora processes all images, OCR text extraction, and reminders completely offline on your device. Zero personal data, images, or tracking metrics leave your phone.</string>
+    <string name="settings_dpdp_title">DPDP Act (2023) Compliant</string>
+    <string name="settings_dpdp_desc">Certified Privacy-by-Design. Zero telemetry, on-device offline extraction, and full Data Principal rights guaranteed.</string>
+    <string name="settings_action_view_policy">View Privacy &amp; DPDP Policy</string>
+    <string name="settings_erasure_title">Right to Erasure (DPDP Sec 12)</string>
+    <string name="settings_erasure_desc">Permanently erase all stored memories, reminders, and cached photos from this device.</string>
+    <string name="settings_action_erase_all">Erase All Data</string>
+    <string name="dialog_erase_confirm_title">Erase all data permanently?</string>
+    <string name="dialog_erase_confirm_msg">This will irreversibly delete all stored memories, reminders, and cached photos from your device. This action cannot be undone.</string>
+    <string name="dialog_erase_confirm_action">Delete Everything</string>
+    <string name="toast_all_data_erased">All memories and local data have been permanently erased.</string>
+    <string name="dialog_policy_title">Privacy Policy &amp; DPDP Charter</string>
+    <string name="dialog_policy_close">Close</string>
+    <string name="settings_section_about">About Memora</string>
+    <string name="settings_version_title">Version</string>
+    <string name="settings_version_val">1.0.0 (Production Release)</string>
+    <string name="settings_architecture_title">Architecture</string>
+    <string name="settings_architecture_desc">Offline-First, M3 Jetpack Compose, Local RapidOCR &amp; Room</string>
+
+    <!-- Accessibility -->
+    <string name="cd_app_icon">Memora Application Icon</string>
+    <string name="cd_nav_home">Navigate to Home</string>
+    <string name="cd_nav_capture">Navigate to Capture</string>
+    <string name="cd_nav_history">Navigate to History</string>
+    <string name="cd_nav_settings">Navigate to Settings</string>
+    <string name="cd_capture_button">Start memory capture</string>
+    <string name="cd_empty_box">Empty box illustration</string>
+    <string name="cd_history_empty">Empty history illustration</string>
+
+    <!-- Diagnostics & Logs (Testing Mode) -->
+    <string name="settings_section_diagnostics">Diagnostics &amp; Logs — Testing</string>
+    <string name="settings_diagnostics_warning">These logs may contain text extracted from your captured documents. Use only with test data and do not share logs containing personal information.</string>
+    <string name="settings_current_scan_title">Current Scan</string>
+    <string name="settings_current_scan_desc">Inspect OCR, Gemini JSON, candidate date selection, and timing</string>
+    <string name="settings_all_logs_title">All Event Logs</string>
+    <string name="action_view_current_scan">View Current Scan</string>
+    <string name="action_copy_logs">Copy Logs</string>
+    <string name="action_share_logs">Share Logs</string>
+    <string name="action_clear_logs">Clear Diagnostics</string>
+    <string name="logs_copied_feedback">Diagnostic logs copied to clipboard</string>
+    <string name="logs_cleared_feedback">Diagnostic logs cleared</string>
+
+    <!-- Notification Permission Rationale -->
+    <string name="notification_permission_title">Reminders Require Notifications</string>
+    <string name="notification_permission_message">Memora needs notification access to alert you when items expire or bill due dates arrive. Without this, reminders will not appear in your status bar.</string>
+    <string name="action_open_settings">Open Settings</string>
+    <string name="action_not_now">Not Now</string>
+
+    <!-- Onboarding Tutorial -->
+    <string name="onboarding_title_1">Remember what matters.</string>
+    <string name="onboarding_desc_1">Keep track of important dates, expiry information, renewals, and things you need to follow up on.</string>
+    <string name="onboarding_title_2">Capture what you want to remember.</string>
+    <string name="onboarding_desc_2">Use the camera or choose an existing image to get started.</string>
+    <string name="onboarding_title_3">Check the details.</string>
+    <string name="onboarding_desc_3">Memora can extract information from your capture. Review the results and correct anything that needs changing before saving.</string>
+    <string name="onboarding_title_4">Let Memora remind you.</string>
+    <string name="onboarding_desc_4">Set reminders for important dates, then mark a memory complete when you have taken action.</string>
+    <string name="onboarding_title_final">You\'re ready to begin.</string>
+    <string name="onboarding_desc_final">Capture something you want to remember, review its details, and save it when you\'re ready.</string>
+    <string name="onboarding_button_get_started">Get started</string>
+    <string name="onboarding_button_skip">Skip</string>
+    <string name="onboarding_button_next">Next</string>
+    <string name="onboarding_button_back">Back</string>
+    <string name="onboarding_progress">%1$d of %2$d</string>
+    <string name="cd_onboarding_page">Onboarding page %1$d of %2$d</string>
+    <string name="cd_onboarding_dot">Page %1$d of %2$d</string>
+    <string name="cd_onboarding_dot_selected">Page %1$d of %2$d, current page</string>
+
+    <!-- Expiry Evaluation Harness -->
+    <string name="settings_evaluation_title">Expiry Pipeline Evaluation</string>
+    <string name="settings_evaluation_desc">Offline benchmark testing RapidOCR passes, crop &amp; deterministic parsing.</string>
+    <string name="action_run_evaluation">Run Evaluation</string>
+    <string name="action_export_csv">Export CSV to Downloads</string>
+    <string name="evaluation_running">Evaluating images…</string>
+    <string name="evaluation_exported_toast">Exported CSV to Downloads: %1$s</string>
+</resources>

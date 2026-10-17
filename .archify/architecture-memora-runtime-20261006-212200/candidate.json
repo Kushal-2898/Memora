@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Memora Android Runtime Architecture",
+    "output": ".archify/architecture-memora-runtime-20261006-212200/memora-runtime.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "user_ui",
+      "type": "frontend",
+      "label": "Scanner Compose UI",
+      "sublabel": "ScannerScreen & Overlays",
+      "pos": [50, 80],
+      "size": [160, 64]
+    },
+    {
+      "id": "camerax",
+      "type": "frontend",
+      "label": "CameraX Pipeline",
+      "sublabel": "ImageAnalysis & Preview",
+      "pos": [330, 80],
+      "size": [160, 64]
+    },
+    {
+      "id": "scanner_vm",
+      "type": "frontend",
+      "label": "Capture ViewModel",
+      "sublabel": "State & Lifecycle Flow",
+      "pos": [610, 80],
+      "size": [160, 64]
+    },
+    {
+      "id": "play_services",
+      "type": "external",
+      "label": "Google Play Services",
+      "sublabel": "On-Device ML Runtime",
+      "pos": [50, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "ocr_engine",
+      "type": "backend",
+      "label": "OCR Subsystem",
+      "sublabel": "ML Kit & RapidOCR",
+      "pos": [330, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "orchestrator",
+      "type": "backend",
+      "label": "Local Orchestrator",
+      "sublabel": "ExtractLocallyUseCase",
+      "pos": [610, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "barcode_engine",
+      "type": "backend",
+      "label": "Barcode Extractor",
+      "sublabel": "MlKitBarcodeExtractor",
+      "pos": [890, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "openfoodfacts",
+      "type": "external",
+      "label": "OpenFoodFacts API",
+      "sublabel": "HTTP Product Catalog",
+      "pos": [1170, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "parser",
+      "type": "backend",
+      "label": "Deterministic Parser",
+      "sublabel": "DeterministicMemoryExtractor",
+      "pos": [610, 440],
+      "size": [160, 64]
+    },
+    {
+      "id": "gemini_ai",
+      "type": "cloud",
+      "label": "Gemini AI Service",
+      "sublabel": "Firebase Vertex AI",
+      "pos": [890, 440],
+      "size": [160, 64]
+    },
+    {
+      "id": "room_db",
+      "type": "database",
+      "label": "Room SQLite DB",
+      "sublabel": "MemoraDatabase & DAO",
+      "pos": [610, 620],
+      "size": [160, 64]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "Reminder Scheduler",
+      "sublabel": "WorkManager & Alarms",
+      "pos": [890, 620],
+      "size": [160, 64]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Presentation & Camera Capture (Jetpack Compose)",
+      "wraps": ["user_ui", "camerax", "scanner_vm"]
+    },
+    {
+      "kind": "region",
+      "label": "On-Device Processing & Offline Persistence",
+      "wraps": ["ocr_engine", "orchestrator", "barcode_engine", "parser", "room_db", "scheduler"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "ui-to-camera",
+      "from": "user_ui",
+      "to": "camerax",
+      "label": "start preview",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "camera-to-vm",
+      "from": "camerax",
+      "to": "scanner_vm",
+      "label": "ImageProxy frame",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "emphasis"
+    },
+    {
+      "id": "vm-to-orchestrator",
+      "from": "scanner_vm",
+      "to": "orchestrator",
+      "label": "processImage(uri)",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "emphasis"
+    },
+    {
+      "id": "orchestrator-to-ocr",
+      "from": "orchestrator",
+      "to": "ocr_engine",
+      "label": "extractText()",
+      "fromSide": "left",
+      "toSide": "right",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ocr-to-play-services",
+      "from": "ocr_engine",
+      "to": "play_services",
+      "label": "Vision SDK call",
+      "fromSide": "left",
+      "toSide": "right",
+      "variant": "dashed"
+    },
+    {
+      "id": "orchestrator-to-parser",
+      "from": "orchestrator",
+      "to": "parser",
+      "label": "parsedLocalResult",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "emphasis"
+    },
+    {
+      "id": "orchestrator-to-barcode",
+      "from": "orchestrator",
+      "to": "barcode_engine",
+      "label": "extractBarcode()",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "barcode-to-off",
+      "from": "barcode_engine",
+      "to": "openfoodfacts",
+      "label": "REST lookup",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "dashed"
+    },
+    {
+      "id": "orchestrator-to-gemini",
+      "from": "orchestrator",
+      "to": "gemini_ai",
+      "label": "cloud fallback",
+      "variant": "dashed"
+    },
+    {
+      "id": "parser-to-db",
+      "from": "parser",
+      "to": "room_db",
+      "label": "persist memory",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "emphasis"
+    },
+    {
+      "id": "db-to-scheduler",
+      "from": "room_db",
+      "to": "scheduler",
+      "label": "schedule alert",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Local-First Core Pipeline",
+      "items": [
+        "CameraX captures high-resolution bitmap frames from camera preview",
+        "ExtractLocallyUseCase orchestrates on-device OCR and deterministic parsing",
+        "Room SQLite database guarantees instant offline persistence (<350ms total)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Vision & Extraction Engine",
+      "items": [
+        "ML Kit provides sub-300ms text and barcode recognition on physical device",
+        "RapidOCR (NCNN) integrated as alternative offline engine behind TextExtractor",
+        "Deterministic parser extracts expiry dates and titles without cloud dependency"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Cloud & External Integrations",
+      "items": [
+        "OpenFoodFacts API enriches scanned barcodes with human-readable product names",
+        "Firebase Vertex AI Gemini fallback handles complex unstructured receipts",
+        "WorkManager & AlarmManager trigger precise reminder notification alerts"
+      ]
+    }
+  ]
+}

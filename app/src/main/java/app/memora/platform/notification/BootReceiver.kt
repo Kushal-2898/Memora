@@ -51,14 +51,18 @@ class BootReceiver : BroadcastReceiver() {
         val memoriesWithReminders = container.memoryRepository.observeMemories().first()
         val scheduler = container.notificationScheduler
 
+        val clock = container.clockProvider
         for (item in memoriesWithReminders) {
+            val zone = runCatching { java.time.ZoneId.of(item.memory.timeZoneId) }.getOrElse { java.time.ZoneId.systemDefault() }
+            val today = clock.today(zone)
             for (reminder in item.reminders) {
                 if (reminder.completedAt == null) {
+                    val effectiveStartDate = if (reminder.reminderStartDate.isBefore(today)) today else reminder.reminderStartDate
                     scheduler.scheduleReminder(
                         memoryId = item.memory.id,
                         reminderId = reminder.id,
                         title = item.memory.title,
-                        reminderStartDate = reminder.reminderStartDate,
+                        reminderStartDate = effectiveStartDate,
                         eventDate = item.memory.eventDate,
                         timeZoneId = item.memory.timeZoneId,
                         reminderTime = reminder.reminderTime ?: java.time.LocalTime.of(9, 0),

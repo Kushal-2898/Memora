@@ -321,13 +321,17 @@ class DefaultAppContainer(
     }
 
     override val memoryExtractor: MemoryExtractor by lazy {
-        app.memora.domain.extraction.CompositeMemoryExtractor(
-            primary = app.memora.domain.extraction.GeminiMemoryExtractor(
-                context!!.applicationContext, 
-                app.memora.BuildConfig.GEMINI_API_KEY
-            ),
-            fallback = DeterministicMemoryExtractor(clockProvider)
-        )
+        if (context != null) {
+            app.memora.domain.extraction.CompositeMemoryExtractor(
+                primary = app.memora.domain.extraction.GeminiMemoryExtractor(
+                    context.applicationContext, 
+                    app.memora.BuildConfig.GEMINI_API_KEY
+                ),
+                fallback = DeterministicMemoryExtractor(clockProvider)
+            )
+        } else {
+            DeterministicMemoryExtractor(clockProvider)
+        }
     }
 
     override val notificationScheduler: NotificationScheduler by lazy {

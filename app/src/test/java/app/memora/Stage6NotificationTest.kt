@@ -197,6 +197,7 @@ class Stage6NotificationTest {
         val today = LocalDate.now(ZoneId.of("UTC"))
         val memoryId = app.container.createMemoryUseCase(
             title = "Snooze Test", eventType = EventType.OTHER, eventDate = today.plusDays(5),
+            timeZoneId = "UTC",
         ).getOrThrow()
         val reminderId = app.container.createReminderUseCase(
             memoryId = memoryId, reminderStartDate = today,
@@ -361,7 +362,7 @@ class Stage6NotificationTest {
     }
 
     @Test
-    fun `ReminderNotificationWorker due today does not schedule another day`() = runTest {
+    fun `ReminderNotificationWorker due today reschedules to next day for overdue tracking`() = runTest {
         val fixedInstant = Instant.parse("2026-09-10T10:00:00Z")
         val fixedClock = FixedTestClockProvider(fixedInstant)
         app.container.clockProvider = fixedClock
@@ -383,7 +384,7 @@ class Stage6NotificationTest {
         val worker = TestListenableWorkerBuilder<ReminderNotificationWorker>(app).setInputData(inputData).build()
         assertEquals(ListenableWorker.Result.success(), worker.doWork())
         val alarms = shadowOf(alarmManager).scheduledAlarms
-        assertTrue(alarms.isEmpty())
+        assertTrue("Uncompleted DUE_TODAY reminder must schedule next day alarm", alarms.isNotEmpty())
     }
 
     @Test

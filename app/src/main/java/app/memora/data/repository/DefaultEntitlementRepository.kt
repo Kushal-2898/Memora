@@ -14,29 +14,41 @@ import kotlinx.coroutines.flow.flowOf
  * In the future, this will be replaced by an implementation that actually
  * verifies purchase tokens and backend state.
  */
-class DefaultEntitlementRepository : EntitlementRepository {
+class DefaultEntitlementRepository(
+    private val isDebug: Boolean = app.memora.BuildConfig.DEBUG
+) : EntitlementRepository {
 
-    private val devEntitlement = Entitlement(
-        status = EntitlementStatus.PREMIUM,
-        canScan = true,
-        canSave = true,
-        productId = "dev_premium_tier",
-        source = "development_override"
-    )
+    private val currentEntitlement = if (isDebug) {
+        Entitlement(
+            status = EntitlementStatus.PREMIUM,
+            canScan = true,
+            canSave = true,
+            productId = "dev_premium_tier",
+            source = "development_override"
+        )
+    } else {
+        Entitlement(
+            status = EntitlementStatus.FREE,
+            canScan = true,
+            canSave = true,
+            productId = null,
+            source = "production_default"
+        )
+    }
 
     override fun observeEntitlement(): Flow<Entitlement> {
-        return flowOf(devEntitlement)
+        return flowOf(currentEntitlement)
     }
 
     override suspend fun getEntitlement(): Entitlement {
-        return devEntitlement
+        return currentEntitlement
     }
 
     override suspend fun canScan(): Boolean {
-        return devEntitlement.canScan
+        return currentEntitlement.canScan
     }
 
     override suspend fun canSave(): Boolean {
-        return devEntitlement.canSave
+        return currentEntitlement.canSave
     }
 }

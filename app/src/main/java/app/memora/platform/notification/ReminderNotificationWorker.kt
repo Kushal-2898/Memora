@@ -113,10 +113,9 @@ class ReminderNotificationWorker(
         //
         // Product requirement: reminders continue daily until the Memory is completed.
         // The COMPLETED guard earlier in doWork() is the sole termination condition.
-        // REMINDER_ACTIVE: reschedule until the day before eventDate (eventDate itself fires DUE_TODAY).
-        // OVERDUE: reschedule indefinitely until the user completes or deletes the Memory.
-        // DUE_TODAY: do NOT reschedule — the next day the status will be OVERDUE, which self-reschedules.
-        val shouldReschedule = status == ReminderStatus.REMINDER_ACTIVE && today.isBefore(eventDate) ||
+        // Reschedule while uncompleted so future days (including transitions to OVERDUE) fire correctly.
+        val shouldReschedule = status == ReminderStatus.REMINDER_ACTIVE ||
+            status == ReminderStatus.DUE_TODAY ||
             status == ReminderStatus.OVERDUE
         if (shouldReschedule) {
             val nextDate = today.plusDays(1)

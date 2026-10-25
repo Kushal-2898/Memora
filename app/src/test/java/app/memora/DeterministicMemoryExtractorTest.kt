@@ -478,4 +478,213 @@ class DeterministicMemoryExtractorTest {
         assertEquals(LocalDate.of(2029, 12, 1), result.selectedEventDate)
         assertEquals(EventType.EXPIRATION, result.eventType)
     }
+
+    // ==========================================
+    // Task 5 Generic Rules Tests (Rules 1 - 9)
+    // ==========================================
+
+    @Test
+    fun `Rule 1 - Anchor scoping nearest anchor binds and dual dates on line`() {
+        // USE BY 18 SEP 25 17 SEP 26: USE BY binds to nearest following date 17 SEP 26, earlier is MFG
+        val useByText = "USE BY 18 SEP 25 17 SEP 26"
+        val useByResult = extractor.extractLocalResult(useByText)
+        assertEquals(LocalDate.of(2026, 9, 17), useByResult.selectedEventDate)
+        assertEquals(EventType.BEST_BEFORE, useByResult.eventType)
+        assertEquals("2025-09-18", useByResult.fields["MFG Date"])
+
+        // MFG.JAN.2026 EXP.DEC.2029: MFG anchor does not apply to later date with own EXP anchor
+        val dualAnchorText = "MFG.JAN.2026 EXP.DEC.2029"
+        val dualAnchorResult = extractor.extractLocalResult(dualAnchorText)
+        assertEquals(LocalDate.of(2029, 12, 1), dualAnchorResult.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, dualAnchorResult.eventType)
+        assertEquals("2026-01-01", dualAnchorResult.fields["MFG Date"])
+    }
+
+    @Test
+    fun `Rule 2 - Boundaries split glued anchor date and date junk`() {
+        // EXPIRYAPR/2027
+        val gluedExp = "EXPIRYAPR/2027"
+        val res1 = extractor.extractLocalResult(gluedExp)
+        assertEquals(LocalDate.of(2027, 4, 1), res1.selectedEventDate)
+
+        // R25/FEB28
+        val gluedPrefix = "R25/FEB28"
+        val res2 = extractor.extractLocalResult(gluedPrefix)
+        assertEquals(LocalDate.of(2028, 2, 1), res2.selectedEventDate)
+
+        // 04/28B.NO:
+        val gluedJunk = "EXP: 04/28B.NO:123"
+        val res3 = extractor.extractLocalResult(gluedJunk)
+        assertEquals(LocalDate.of(2028, 4, 1), res3.selectedEventDate)
+
+        // 15JUN26711MRR2745
+        val dualGlued = "15JUN26711MRR2745"
+        val res4 = extractor.extractLocalResult(dualGlued)
+        assertEquals(LocalDate.of(2027, 3, 11), res4.selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 3 - Fuzzy anchors and months within edit distance 1`() {
+        val fuzzyAnchor = "EXF:07/2027"
+        val res1 = extractor.extractLocalResult(fuzzyAnchor)
+        assertEquals(LocalDate.of(2027, 7, 1), res1.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res1.eventType)
+
+        val fuzzyMonth = "EXP: 11MRR27"
+        val res2 = extractor.extractLocalResult(fuzzyMonth)
+        assertEquals(LocalDate.of(2027, 3, 11), res2.selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 4 - Non-alphanumeric separators like greater-than`() {
+        val gtDate = "EXP 13-01>27"
+        val res1 = extractor.extractLocalResult(gtDate)
+        assertEquals(LocalDate.of(2027, 1, 13), res1.selectedEventDate)
+
+        val gtDate2 = "EXP 15>09/26"
+        val res2 = extractor.extractLocalResult(gtDate2)
+        assertEquals(LocalDate.of(2026, 9, 15), res2.selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 5 - Slash repair only in date-shaped tokens`() {
+        // 06109/2026 -> 06/09/2026
+        val d1 = "EXP: 06109/2026"
+        assertEquals(LocalDate.of(2026, 9, 6), extractor.extractLocalResult(d1).selectedEventDate)
+
+        // 08712126 -> 08/12/2026
+        val d2 = "EXP: 08712126"
+        assertEquals(LocalDate.of(2026, 12, 8), extractor.extractLocalResult(d2).selectedEventDate)
+
+        // 0776027 -> 07/2027 with year repair 6<->2
+        val d3 = "EXP: 0776027"
+        assertEquals(LocalDate.of(2027, 7, 1), extractor.extractLocalResult(d3).selectedEventDate)
+
+        // 0712028 -> 07/2028
+        val d4 = "EXP: 0712028"
+        assertEquals(LocalDate.of(2028, 7, 1), extractor.extractLocalResult(d4).selectedEventDate)
+
+        // 05726 -> 05/26
+        val d5 = "EXP: 05726"
+        assertEquals(LocalDate.of(2026, 5, 1), extractor.extractLocalResult(d5).selectedEventDate)
+
+        // 0972026 -> 09/2026
+        val d6 = "EXP: 0972026"
+        assertEquals(LocalDate.of(2026, 9, 1), extractor.extractLocalResult(d6).selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 6 - Dot-separated dates next to expiry anchor`() {
+        val dotDate = "ExpiryDate: 13.09.2027"
+        val res = extractor.extractLocalResult(dotDate)
+        assertEquals(LocalDate.of(2027, 9, 13), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+    }
+
+    @Test
+    fun `Rule 7 - Candidate choice anchored beats unanchored and isolated unanchored returns null`() {
+        // Anchored beats unanchored
+        val competing = "2025-05-10\nEXP: 2027-08-15"
+        val res1 = extractor.extractLocalResult(competing)
+        assertEquals(LocalDate.of(2027, 8, 15), res1.selectedEventDate)
+
+        // Isolated unanchored packaging/import date returns null expiry
+        val importText = "PRODUCT OF INDIA\nDATE OF IMPORT: 01-11-2025\nNET WT 500g"
+        val res2 = extractor.extractLocalResult(importText)
+        assertNull("Isolated import date should not be returned as expiry", res2.selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 8 - Shelf life Best before N months with printed MFG date`() {
+        val shelfText = "MFG: 09/2026\nBest before 24 months"
+        val res = extractor.extractLocalResult(shelfText)
+        assertEquals(LocalDate.of(2028, 9, 1), res.selectedEventDate)
+        assertEquals(EventType.BEST_BEFORE, res.eventType)
+
+        // Multi-pass aggregation via extractFromPasses
+        val pass1 = "MFG: 05/26\nBatch No: NA6E015"
+        val pass2 = "Best before 24 months"
+        val multiPassRes = extractor.extractFromPasses(listOf(pass1, pass2))
+        assertEquals(LocalDate.of(2028, 5, 1), multiPassRes.selectedEventDate)
+    }
+
+    @Test
+    fun `Rule 9 - Never rewrite characters outside date-shaped tokens`() {
+        val raw = "LOT 4B7 TIME 12:30 MFG 01/2026 EXP 01/2028"
+        val normalized = DeterministicMemoryExtractor.normalizeForExtraction(raw)
+        assertTrue("LOT 4B7 must remain intact", normalized.contains("LOT 4B7"))
+        val res = extractor.extractLocalResult(raw)
+        assertEquals(LocalDate.of(2028, 1, 1), res.selectedEventDate)
+    }
+
+    @Test
+    fun `Task 5b Item 2 - Unsafe year completion prevented for truncated or single-digit years`() {
+        // "04:202" must NOT become 2020-04. A year must strictly be 2 or 4 digits.
+        val res1 = extractor.extractLocalResult("04:202")
+        assertNull("Truncated year 04:202 must return null (none)", res1.selectedEventDate)
+
+        val res2 = extractor.extractLocalResult("Exp. Date 04:202")
+        assertNull("Exp. Date 04:202 must return null (none)", res2.selectedEventDate)
+
+        // Single digit year (e.g. 04/2 or 04:2) must also return null
+        val res3 = extractor.extractLocalResult("EXP: 04/2")
+        assertNull("Single digit year 04/2 must return null", res3.selectedEventDate)
+
+        // 3-digit year in other forms
+        val res4 = extractor.extractLocalResult("USE BY 15/09/202")
+        assertNull("3-digit year 15/09/202 must return null", res4.selectedEventDate)
+    }
+
+    @Test
+    fun `Task 6 - Glued digit and EXP anchor decoupling`() {
+        val text = ".FOR15TABS.RS.32.12INCL.OFL N.2026EXP.DEC.2029 MFG.JAN. DOBS4352"
+        val norm = DeterministicMemoryExtractor.normalizeForExtraction(text)
+        assertTrue("EXP must be decoupled from preceding year digits", norm.contains("2026 EXP."))
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2029, 12, 1), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+        assertEquals(DeterministicMemoryExtractor.CONFIDENCE_HIGH, res.confidence)
+    }
+
+    @Test
+    fun `Task 6 - Fuzzy PIRY anchor next to date-shaped token`() {
+        val text1 = "PIRYAPR/2027 59.17"
+        val res1 = extractor.extractLocalResult(text1)
+        assertEquals(LocalDate.of(2027, 4, 1), res1.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res1.eventType)
+        assertEquals(DeterministicMemoryExtractor.CONFIDENCE_HIGH, res1.confidence)
+
+        val text2 = "EXPIRYAPR/2027"
+        val res2 = extractor.extractLocalResult(text2)
+        assertEquals(LocalDate.of(2027, 4, 1), res2.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res2.eventType)
+        assertEquals(DeterministicMemoryExtractor.CONFIDENCE_HIGH, res2.confidence)
+    }
+
+    @Test
+    fun `Task 6 - Import date rejected as non-actionable historical date`() {
+        val text = "Month of Import: NOK KHET LANE, BANG KH BANGKOK 10120 THAILAND 4 HLO,BANG KHO LAEM, NOVEMBER2025 Rs 219.00"
+        val res = extractor.extractLocalResult(text)
+        assertNull("Dates labeled with Month of Import must be filtered out", res.selectedEventDate)
+        assertEquals(0f, res.confidence)
+    }
+
+    @Test
+    fun `Task 6 - Derived shelf life calculation has low confidence, never dangerous high confidence`() {
+        val text = "MFG: 01/09/2026\nBEST BEFORE 6 MONTHS FROM DATE OF MFG"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2027, 3, 1), res.selectedEventDate)
+        assertEquals(DeterministicMemoryExtractor.CONFIDENCE_LOW, res.confidence)
+    }
+
+    @Test
+    fun `Task 7 - Unreadable shelf life duration treats bare date as MFG returning null expiry`() {
+        // When "Best before months from mfg" exists without readable count N, bare date is treated as MFG date and not returned as expiry
+        val text = "17080 8068 Batch No. apgba MRP(): so) 99.00 05726 NA6E015\nBestbeforemonths fromthedateofmlg Manufactured by:"
+        val res = extractor.extractLocalResult(text)
+        assertNull("Bare date must be treated as MFG and return null expiry when shelf life duration is unreadable", res.selectedEventDate)
+        assertEquals(0f, res.confidence)
+    }
 }
+
+

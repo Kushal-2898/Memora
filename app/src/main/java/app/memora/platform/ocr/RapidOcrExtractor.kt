@@ -14,6 +14,7 @@ import com.benjaminwan.ocrlibrary.OcrEngine
 import com.benjaminwan.ocrlibrary.OcrResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import app.memora.domain.extraction.DateRole
 import java.io.File
 
 /**
@@ -32,19 +33,51 @@ import java.io.File
  * 5. Full-width ASCII & dot-matrix digit disambiguation via [RapidOcrTextNormalizer].
  * 6. Early exit on detection of anchored dates, maintaining <= 2 bitmaps resident in memory.
  */
+data class RapidOcrConfig(
+    val maxSideLen: Int = 1536,
+    val boxScoreThresh: Float = 0.40f,
+    val boxThresh: Float = 0.20f,
+    val unClipRatio: Float = 2.0f,
+    val numThreads: Int = 4,
+    val doAngle: Boolean = true,
+    val mostAngle: Boolean = false,
+    val isTwoStage: Boolean = false,
+) {
+    companion object {
+        val DEFAULT = RapidOcrConfig()
+    }
+}
+
 class RapidOcrExtractor(
     private val context: Context,
+    val config: RapidOcrConfig = RapidOcrConfig.DEFAULT,
 ) : TextExtractor {
+
+    companion object {
+        const val SCAN_TIME_BUDGET_MS = 8000L
+    }
+
+    private val deterministicExtractor by lazy { app.memora.domain.extraction.DeterministicMemoryExtractor() }
 
     // Eager/lazy initialization of RapidOCR engine with tuned parameters.
     private val ocrEngine by lazy {
         OcrEngine(context).apply {
             padding = 10
-            boxScoreThresh = 0.40f
-            boxThresh = 0.20f
-            unClipRatio = 2.0f
-            doAngle = true
-            mostAngle = false // Independent angle classification for each text box
+            boxScoreThresh = config.boxScoreThresh
+            boxThresh = config.boxThresh
+            unClipRatio = config.unClipRatio
+            doAngle = config.doAngle
+            mostAngle = config.mostAngle
+            if (config.numThreads != 4) {
+                init(
+                    context.assets,
+                    config.numThreads,
+                    "ch_PP-OCRv3_det_infer",
+                    "ch_ppocr_mobile_v2.0_cls_infer",
+                    "ch_PP-OCRv3_rec_infer",
+                    "ppocr_keys_v1.txt"
+                )
+            }
         }
     }
 
@@ -109,12 +142,14 @@ class RapidOcrExtractor(
     suspend fun extractForEvaluation(
         imageUri: String,
         runAllPasses: Boolean = false,
+        forceFallbackCrop: Boolean = false,
     ): Result<RapidOcrEvaluationData> = withContext(Dispatchers.IO) {
         runProductionOcrPipeline(
             imageUri = imageUri,
             scanId = null,
             runAllPasses = runAllPasses,
             captureEvaluationMetrics = true,
+            forceFallbackCrop = forceFallbackCrop,
         )
     }
 
@@ -128,6 +163,7 @@ class RapidOcrExtractor(
         scanId: String?,
         runAllPasses: Boolean,
         captureEvaluationMetrics: Boolean,
+        forceFallbackCrop: Boolean = false,
     ): Result<RapidOcrEvaluationData> {
         val startTime = System.currentTimeMillis()
         return try {
@@ -145,9 +181,24 @@ class RapidOcrExtractor(
 
             val passesList = mutableListOf<RapidOcrPassInfo>()
             var bestResult: ExtractedText? = null
+            var bestScore = -1
             var winningVariant = "NONE"
 
-            fun recordPass(passName: String, durationMs: Long, result: ExtractedText) {
+            fun recordPass(
+                passName: String,
+                durationMs: Long,
+                result: ExtractedText,
+                decodeCropMs: Long = 0L,
+                detMs: Double = 0.0,
+                recMs: Double = 0.0,
+                boxesDetected: Int = 0,
+                boxesRecognized: Int = 0,
+                msPerBox: Double = 0.0,
+            ) {
+                AppLog.i(
+                    "OCR_STAGE",
+                    "Stage timing [pass=$passName]: decodeCrop=${decodeCropMs}ms, det=${detMs.toLong()}ms, rec=${recMs.toLong()}ms, boxes=$boxesDetected (rec=$boxesRecognized), ms_per_box=${String.format(java.util.Locale.US, "%.1f", msPerBox)}ms, passMs=${durationMs}ms"
+                )
                 if (captureEvaluationMetrics) {
                     passesList.add(
                         RapidOcrPassInfo(
@@ -156,13 +207,47 @@ class RapidOcrExtractor(
                             rawText = result.rawText,
                             hasAnchoredDate = OcrDateDetector.hasAnchoredDate(result.rawText),
                             extractedText = result,
+                            decodeCropMs = decodeCropMs,
+                            detMs = detMs,
+                            recMs = recMs,
+                            boxesDetected = boxesDetected,
+                            boxesRecognized = boxesRecognized,
+                            msPerBox = msPerBox,
                         )
                     )
                 }
             }
 
+            fun updateBestCandidate(variantName: String, result: ExtractedText) {
+                val score = scoreCandidateQuality(result)
+                if (bestResult == null || score > bestScore) {
+                    bestResult = result
+                    bestScore = score
+                    winningVariant = variantName
+                }
+            }
+
+            var budgetHit = false
+            fun isBudgetExceeded(): Boolean {
+                val elapsed = System.currentTimeMillis() - startTime
+                if (elapsed >= SCAN_TIME_BUDGET_MS) {
+                    if (!budgetHit) {
+                        AppLog.w("OCR", "budget_hit: time budget of ${SCAN_TIME_BUDGET_MS}ms exceeded ($elapsed ms)")
+                        budgetHit = true
+                    }
+                    return true
+                }
+                return false
+            }
+
+            var consecutiveEmptyPasses = 0
+            var showsVerticalText = false
+
             // Step 1: Decode reticle crop via ScanRegionCropper
-            val baseCroppedBitmap = ScanRegionCropper.cropReticleRegion(filePath)
+            val tCrop = System.currentTimeMillis()
+            val baseCroppedBitmap = ScanRegionCropper.cropReticleRegion(filePath, forceFallbackCrop = forceFallbackCrop)
+            val cropDurationMs = System.currentTimeMillis() - tCrop
+            AppLog.i("OCR_STAGE", "Stage timing [decode_crop]: duration=${cropDurationMs}ms")
 
             if (baseCroppedBitmap != null) {
                 try {
@@ -170,166 +255,132 @@ class RapidOcrExtractor(
                         AppLog.recordImageMemory(baseCroppedBitmap.width, baseCroppedBitmap.height, "ARGB_8888", scanId = scanId)
                     }
 
-                    // Variant 1: Original reticle crop (0 deg)
+                    // Pass 1: Original reticle crop (0 deg)
+                    val initialMaxSide = if (config.isTwoStage) 1024 else config.maxSideLen
                     val tOrig = System.currentTimeMillis()
-                    val v1Result = detectBitmap(baseCroppedBitmap, 1536)
-                    recordPass("original", System.currentTimeMillis() - tOrig, v1Result)
-                    bestResult = v1Result
-                    winningVariant = "RETICLE_ORIGINAL"
+                    val v1Det = detectBitmap(baseCroppedBitmap, initialMaxSide)
+                    val v1Result = v1Det.extractedText
+                    recordPass("original", System.currentTimeMillis() - tOrig, v1Result, cropDurationMs, v1Det.dbNetTimeMs, v1Det.recTimeMs, v1Det.boxesDetected, v1Det.boxesRecognized, v1Det.msPerBox)
+                    updateBestCandidate("RETICLE_ORIGINAL", v1Result)
+                    if (hasVerticalTextEvidence(v1Result)) showsVerticalText = true
 
-                    // Multi-orientation check (90 deg, 270 deg) if anchored date not yet found (or if runAllPasses is enabled)
-                    val needRot90 = !OcrDateDetector.hasAnchoredDate(bestResult.rawText)
-                    if (needRot90 || runAllPasses) {
-                        val tRot90 = System.currentTimeMillis()
-                        val rot90Bmp = rotateBitmap(baseCroppedBitmap, 90f)
-                        try {
-                            val rot90Result = detectBitmap(rot90Bmp, 1536)
-                            recordPass("rotated_90", System.currentTimeMillis() - tRot90, rot90Result)
-                            if (needRot90) {
-                                if (OcrDateDetector.hasAnchoredDate(rot90Result.rawText)) {
-                                    bestResult = rot90Result
-                                    winningVariant = "RETICLE_ORIGINAL_90DEG"
-                                } else if (rot90Result.rawText.length > (bestResult?.rawText?.length ?: 0) * 1.5) {
-                                    bestResult = rot90Result
-                                    winningVariant = "RETICLE_ORIGINAL_90DEG"
-                                }
-                            }
-                        } finally {
-                            rot90Bmp.recycle()
-                        }
-
-                        val needRot270 = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                        if (needRot270 || runAllPasses) {
-                            val tRot270 = System.currentTimeMillis()
-                            val rot270Bmp = rotateBitmap(baseCroppedBitmap, 270f)
-                            try {
-                                val rot270Result = detectBitmap(rot270Bmp, 1536)
-                                recordPass("rotated_270", System.currentTimeMillis() - tRot270, rot270Result)
-                                if (needRot270 && OcrDateDetector.hasAnchoredDate(rot270Result.rawText)) {
-                                    bestResult = rot270Result
-                                    winningVariant = "RETICLE_ORIGINAL_270DEG"
-                                }
-                            } finally {
-                                rot270Bmp.recycle()
-                            }
-                        }
+                    // Two-stage read: re-read at full resolution (1536) only if no date is found
+                    if (config.isTwoStage && bestScore < 5000 && (runAllPasses || !isBudgetExceeded())) {
+                        val tOrigFull = System.currentTimeMillis()
+                        val v1FullDet = detectBitmap(baseCroppedBitmap, 1536)
+                        val v1FullResult = v1FullDet.extractedText
+                        recordPass("original_full", System.currentTimeMillis() - tOrigFull, v1FullResult, 0L, v1FullDet.dbNetTimeMs, v1FullDet.recTimeMs, v1FullDet.boxesDetected, v1FullDet.boxesRecognized, v1FullDet.msPerBox)
+                        updateBestCandidate("RETICLE_ORIGINAL_FULL", v1FullResult)
+                        if (hasVerticalTextEvidence(v1FullResult)) showsVerticalText = true
                     }
 
-                    // Variant 2: Contrast-enhanced grayscale if anchored date still not found (or if runAllPasses is enabled)
-                    val needContrast = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                    if (needContrast || runAllPasses) {
+                    val hasDateOrKw1 = hasPackagingKeyword(v1Result.rawText) || hasDateShapedToken(v1Result.rawText)
+                    if (!hasDateOrKw1) consecutiveEmptyPasses++ else consecutiveEmptyPasses = 0
+
+                    // Stop early on an anchored date
+                    var stopEarly = !runAllPasses && bestScore >= 10000
+
+                    // Pass 2: Contrast-enhanced grayscale
+                    if (!stopEarly && (runAllPasses || !isBudgetExceeded())) {
                         val tContrast = System.currentTimeMillis()
                         val v2Bitmap = ImagePreprocessor.createContrastEnhancedVariant(baseCroppedBitmap)
-                        try {
-                            val v2Result = detectBitmap(v2Bitmap, 1536)
-                            recordPass("contrast", System.currentTimeMillis() - tContrast, v2Result)
-                            if (needContrast && (OcrDateDetector.hasAnchoredDate(v2Result.rawText) ||
-                                    v2Result.rawText.length > (bestResult?.rawText?.length ?: 0))
-                            ) {
-                                bestResult = v2Result
-                                winningVariant = "RETICLE_CONTRAST"
-                            }
-
-                            val needContrastRot90 = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                            if (needContrastRot90 || runAllPasses) {
-                                val tContrast90 = System.currentTimeMillis()
-                                val v2Rot90 = rotateBitmap(v2Bitmap, 90f)
-                                try {
-                                    val v2Rot90Result = detectBitmap(v2Rot90, 1536)
-                                    recordPass("contrast_90", System.currentTimeMillis() - tContrast90, v2Rot90Result)
-                                    if (needContrastRot90 && OcrDateDetector.hasAnchoredDate(v2Rot90Result.rawText)) {
-                                        bestResult = v2Rot90Result
-                                        winningVariant = "RETICLE_CONTRAST_90DEG"
-                                    }
-                                } finally {
-                                    v2Rot90.recycle()
-                                }
-                            }
+                        val v2Det = try {
+                            detectBitmap(v2Bitmap, config.maxSideLen)
                         } finally {
                             v2Bitmap.recycle()
                         }
+                        val v2Result = v2Det.extractedText
+                        recordPass("contrast", System.currentTimeMillis() - tContrast, v2Result, 0L, v2Det.dbNetTimeMs, v2Det.recTimeMs, v2Det.boxesDetected, v2Det.boxesRecognized, v2Det.msPerBox)
+                        updateBestCandidate("RETICLE_CONTRAST", v2Result)
+                        if (hasVerticalTextEvidence(v2Result)) showsVerticalText = true
 
-                        // Variant 3: Inverted color (foil packaging, silver tins, dark bottles)
-                        val needInverted = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                        if (needInverted || runAllPasses) {
-                            val tInverted = System.currentTimeMillis()
-                            val v3Bitmap = ImagePreprocessor.createInvertedVariant(baseCroppedBitmap)
-                            try {
-                                val v3Result = detectBitmap(v3Bitmap, 1536)
-                                recordPass("inverted", System.currentTimeMillis() - tInverted, v3Result)
-                                if (needInverted && (OcrDateDetector.hasAnchoredDate(v3Result.rawText) ||
-                                        v3Result.rawText.length > (bestResult?.rawText?.length ?: 0))
-                                ) {
-                                    bestResult = v3Result
-                                    winningVariant = "RETICLE_INVERTED"
-                                }
+                        val hasDateOrKw2 = hasPackagingKeyword(v2Result.rawText) || hasDateShapedToken(v2Result.rawText)
+                        if (!hasDateOrKw2) consecutiveEmptyPasses++ else consecutiveEmptyPasses = 0
 
-                                val needInvertedRot90 = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                                if (needInvertedRot90 || runAllPasses) {
-                                    val tInverted90 = System.currentTimeMillis()
-                                    val v3Rot90 = rotateBitmap(v3Bitmap, 90f)
-                                    try {
-                                        val v3Rot90Result = detectBitmap(v3Rot90, 1536)
-                                        recordPass("inverted_90", System.currentTimeMillis() - tInverted90, v3Rot90Result)
-                                        if (needInvertedRot90 && OcrDateDetector.hasAnchoredDate(v3Rot90Result.rawText)) {
-                                            bestResult = v3Rot90Result
-                                            winningVariant = "RETICLE_INVERTED_90DEG"
-                                        }
-                                    } finally {
-                                        v3Rot90.recycle()
-                                    }
-                                }
+                        if (!runAllPasses && (bestScore >= 10000 || consecutiveEmptyPasses >= 2)) {
+                            stopEarly = true
+                        }
+                    }
+
+                    // Pass 3: Inverted color (foil packaging, silver tins, dark bottles)
+                    if (!stopEarly && (runAllPasses || !isBudgetExceeded())) {
+                        val tInverted = System.currentTimeMillis()
+                        val v3Bitmap = ImagePreprocessor.createInvertedVariant(baseCroppedBitmap)
+                        val v3Det = try {
+                            detectBitmap(v3Bitmap, config.maxSideLen)
+                        } finally {
+                            v3Bitmap.recycle()
+                        }
+                        val v3Result = v3Det.extractedText
+                        recordPass("inverted", System.currentTimeMillis() - tInverted, v3Result, 0L, v3Det.dbNetTimeMs, v3Det.recTimeMs, v3Det.boxesDetected, v3Det.boxesRecognized, v3Det.msPerBox)
+                        updateBestCandidate("RETICLE_INVERTED", v3Result)
+                        if (hasVerticalTextEvidence(v3Result)) showsVerticalText = true
+
+                        val hasDateOrKw3 = hasPackagingKeyword(v3Result.rawText) || hasDateShapedToken(v3Result.rawText)
+                        if (!hasDateOrKw3) consecutiveEmptyPasses++ else consecutiveEmptyPasses = 0
+
+                        if (!runAllPasses && (bestScore >= 10000 || consecutiveEmptyPasses >= 2)) {
+                            stopEarly = true
+                        }
+                    }
+
+                    // Rotations: 90/270 rotations only if earlier passes show vertical text
+                    val needRotations = showsVerticalText && bestScore < 10000 && consecutiveEmptyPasses < 2
+                    if (!stopEarly && (needRotations || runAllPasses)) {
+                        // Pass 4: Rotated 90 (essential for vertical packaging)
+                        if (runAllPasses || !isBudgetExceeded()) {
+                            val tRot90 = System.currentTimeMillis()
+                            val rot90Bmp = rotateBitmap(baseCroppedBitmap, 90f)
+                            val rot90Det = try {
+                                detectBitmap(rot90Bmp, config.maxSideLen)
                             } finally {
-                                v3Bitmap.recycle()
+                                rot90Bmp.recycle()
                             }
+                            val rot90Result = rot90Det.extractedText
+                            recordPass("rotated_90", System.currentTimeMillis() - tRot90, rot90Result, 0L, rot90Det.dbNetTimeMs, rot90Det.recTimeMs, rot90Det.boxesDetected, rot90Det.boxesRecognized, rot90Det.msPerBox)
+                            updateBestCandidate("RETICLE_ORIGINAL_90DEG", rot90Result)
+
+                            if (!runAllPasses && bestScore >= 10000) {
+                                stopEarly = true
+                            }
+                        }
+
+                        // Pass 5: Rotated 270 (only if still no anchored date AND under budget)
+                        if (!stopEarly && (bestScore < 10000 || runAllPasses) && (runAllPasses || !isBudgetExceeded())) {
+                            val tRot270 = System.currentTimeMillis()
+                            val rot270Bmp = rotateBitmap(baseCroppedBitmap, 270f)
+                            val rot270Det = try {
+                                detectBitmap(rot270Bmp, config.maxSideLen)
+                            } finally {
+                                rot270Bmp.recycle()
+                            }
+                            val rot270Result = rot270Det.extractedText
+                            recordPass("rotated_270", System.currentTimeMillis() - tRot270, rot270Result, 0L, rot270Det.dbNetTimeMs, rot270Det.recTimeMs, rot270Det.boxesDetected, rot270Det.boxesRecognized, rot270Det.msPerBox)
+                            updateBestCandidate("RETICLE_ORIGINAL_270DEG", rot270Result)
+
+                            if (!runAllPasses && bestScore >= 10000) {
+                                stopEarly = true
+                            }
+                        }
+
+                        // Pass 6: Contrast 90 (only if still no anchored date AND under budget)
+                        if (!stopEarly && (bestScore < 10000 || runAllPasses) && (runAllPasses || !isBudgetExceeded())) {
+                            val tContrast90 = System.currentTimeMillis()
+                            val v2Bmp = ImagePreprocessor.createContrastEnhancedVariant(baseCroppedBitmap)
+                            val v2Rot90 = rotateBitmap(v2Bmp, 90f)
+                            v2Bmp.recycle()
+                            val v2Rot90Det = try {
+                                detectBitmap(v2Rot90, config.maxSideLen)
+                            } finally {
+                                v2Rot90.recycle()
+                            }
+                            val v2Rot90Result = v2Rot90Det.extractedText
+                            recordPass("contrast_90", System.currentTimeMillis() - tContrast90, v2Rot90Result, 0L, v2Rot90Det.dbNetTimeMs, v2Rot90Det.recTimeMs, v2Rot90Det.boxesDetected, v2Rot90Det.boxesRecognized, v2Rot90Det.msPerBox)
+                            updateBestCandidate("RETICLE_CONTRAST_90DEG", v2Rot90Result)
                         }
                     }
                 } finally {
                     baseCroppedBitmap.recycle()
-                }
-            }
-
-            // Fallback: If reticle crop yielded no text or missed the anchored date, test full uncropped image
-            val needFullFallback = bestResult == null || bestResult.blocks.isEmpty() || !OcrDateDetector.hasAnchoredDate(bestResult.rawText)
-            if (needFullFallback || runAllPasses) {
-                try {
-                    if (file.exists() && file.length() > 0) {
-                        val tFull = System.currentTimeMillis()
-                        val fullBmp = BitmapFactory.decodeFile(file.absolutePath)
-                        if (fullBmp != null) {
-                            try {
-                                val fullResult = detectBitmap(fullBmp, 1536)
-                                recordPass("full_image", System.currentTimeMillis() - tFull, fullResult)
-                                if (needFullFallback && (bestResult == null || bestResult.blocks.isEmpty() ||
-                                        (OcrDateDetector.hasAnchoredDate(fullResult.rawText) && !OcrDateDetector.hasAnchoredDate(bestResult.rawText)) ||
-                                        fullResult.rawText.length > (bestResult.rawText.length * 2))
-                                ) {
-                                    bestResult = fullResult
-                                    winningVariant = "FULL_IMAGE_FALLBACK"
-                                }
-
-                                val needFullRot90 = !OcrDateDetector.hasAnchoredDate(bestResult?.rawText.orEmpty())
-                                if (needFullRot90 || runAllPasses) {
-                                    val tFull90 = System.currentTimeMillis()
-                                    val fullRot90 = rotateBitmap(fullBmp, 90f)
-                                    try {
-                                        val fullRot90Result = detectBitmap(fullRot90, 1536)
-                                        recordPass("full_image_90", System.currentTimeMillis() - tFull90, fullRot90Result)
-                                        if (needFullRot90 && OcrDateDetector.hasAnchoredDate(fullRot90Result.rawText)) {
-                                            bestResult = fullRot90Result
-                                            winningVariant = "FULL_IMAGE_FALLBACK_90DEG"
-                                        }
-                                    } finally {
-                                        fullRot90.recycle()
-                                    }
-                                }
-                            } finally {
-                                fullBmp.recycle()
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    AppLog.w("OCR", "RapidOCR full image fallback failed: ${e.message}")
                 }
             }
 
@@ -344,6 +395,7 @@ class RapidOcrExtractor(
                     winningPass = normalizedWinningPass,
                     totalMs = totalMs,
                     passes = passesList,
+                    isBudgetExceeded = budgetHit,
                 )
             )
         } catch (e: Throwable) {
@@ -352,7 +404,7 @@ class RapidOcrExtractor(
     }
 
     private fun mapVariantToPassCategory(variant: String): String = when (variant) {
-        "RETICLE_ORIGINAL", "FULL_IMAGE_FALLBACK" -> "original"
+        "RETICLE_ORIGINAL", "RETICLE_ORIGINAL_FULL", "FULL_IMAGE_FALLBACK" -> "original"
         "RETICLE_CONTRAST" -> "contrast"
         "RETICLE_INVERTED" -> "inverted"
         "RETICLE_ORIGINAL_90DEG",
@@ -363,13 +415,107 @@ class RapidOcrExtractor(
         else -> "original"
     }
 
+    private fun hasPackagingKeyword(text: String): Boolean {
+        if (text.isBlank()) return false
+        val normalized = app.memora.domain.extraction.DeterministicMemoryExtractor.normalizeForExtraction(text).uppercase()
+        return normalized.contains("EXP") || normalized.contains("USE BY") ||
+            normalized.contains("BEST BEFORE") || normalized.contains("MFG") ||
+            normalized.contains("MFD") || normalized.contains("PKD") ||
+            normalized.contains("BB") || normalized.contains("SE BY") ||
+            normalized.contains("USE BEFORE") || normalized.contains("PACKED") ||
+            normalized.contains("VALID") || normalized.contains("SHELF") ||
+            normalized.contains("CONSUME") || normalized.contains("BATCH") ||
+            normalized.contains("B.NO")
+    }
+
+    private fun hasDateShapedToken(text: String): Boolean {
+        if (text.isBlank()) return false
+        val normalized = app.memora.domain.extraction.DeterministicMemoryExtractor.normalizeForExtraction(text)
+        return Regex("""\b(?:0?[1-9]|[12]\d|3[01])[/.-](?:0?[1-9]|1[0-2])[/.-](?:20\d{2}|\d{2})\b""").containsMatchIn(normalized) ||
+            Regex("""\b(?:0?[1-9]|1[0-2])[/.-](?:20\d{2}|2[4-9])\b""").containsMatchIn(normalized) ||
+            Regex("""\b202[4-9]\b""").containsMatchIn(normalized) ||
+            Regex("""\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\w*[\s,.-]*(?:20\d{2}|\d{2})\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
+            Regex("""\b(?:0?[1-9]|[12]\d|3[01])\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
+            Regex("""(?<!\d)\d{6,8}(?!\d)""").containsMatchIn(normalized)
+    }
+
+    private fun hasVerticalTextEvidence(extractedText: ExtractedText): Boolean {
+        // 1. Text elements with height significantly greater than width
+        val hasTallElement = extractedText.blocks.any { block ->
+            block.lines.any { line ->
+                line.elements.any { elem ->
+                    val box = elem.boundingBox
+                    box != null && box.height() > box.width() * 1.25f && box.height() > 20
+                }
+            }
+        }
+        if (hasTallElement) return true
+
+        // 2. Lines that are taller than wide
+        val hasTallLine = extractedText.blocks.any { block ->
+            block.lines.any { line ->
+                val box = line.boundingBox
+                box != null && box.height() > box.width() * 1.0f && box.height() > 15
+            }
+        }
+        if (hasTallLine) return true
+
+        // 3. Spaced single characters indicating horizontal scan cutting across vertical columns
+        val singleCharPattern = Regex("""(?:^|\s)[A-Za-z0-9\u4e00-\u9fff](\s+[A-Za-z0-9\u4e00-\u9fff]){3,}(?:\s|$)""")
+        if (singleCharPattern.containsMatchIn(extractedText.rawText)) return true
+
+        // 4. Multiple single-character lines
+        val lines = extractedText.rawText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val shortLinesCount = lines.count { it.length <= 2 }
+        if (shortLinesCount >= 2) return true
+
+        // 5. High frequency of isolated 1-character tokens or Chinese characters from slicing vertical English text
+        val tokens = extractedText.rawText.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        val singleTokens = tokens.count { it.length == 1 }
+        val chineseCount = tokens.count { Regex("""[\u4e00-\u9fff]""").containsMatchIn(it) }
+        if (singleTokens >= 10 || chineseCount >= 3) return true
+
+        return false
+    }
+
+    private fun scoreCandidateQuality(extractedText: ExtractedText): Int {
+        if (extractedText.rawText.isBlank()) return 0
+        val localResult = deterministicExtractor.extractLocalResult(extractedText.rawText)
+        val selectedDate = localResult.selectedEventDate
+        val conf = localResult.confidence
+        val isAnchoredExpiry = selectedDate != null && conf >= 0.8f
+        val hasMfgAnchor = localResult.dateCandidates.any { !it.role.isActionableReminder }
+        val isUnanchoredDate = selectedDate != null && conf < 0.8f
+
+        return when {
+            isAnchoredExpiry -> 10000 + (conf * 1000).toInt()
+            hasMfgAnchor && selectedDate == null -> 6000 + (localResult.dateCandidates.maxOfOrNull { it.scoreComponents.totalScore }?.toInt() ?: 0)
+            isUnanchoredDate -> 5000 + (conf * 1000).toInt()
+            localResult.dateCandidates.isNotEmpty() -> 1000 + minOf(500, localResult.dateCandidates.size * 100)
+            hasPackagingKeyword(extractedText.rawText) -> 500
+            hasDateShapedToken(extractedText.rawText) -> 300
+            extractedText.blocks.isNotEmpty() -> 100
+            else -> 10
+        }
+    }
+
     override val isAvailable: Boolean = true
+
+    data class BitmapDetectionResult(
+        val extractedText: ExtractedText,
+        val dbNetTimeMs: Double,
+        val recTimeMs: Double,
+        val detectTimeMs: Double,
+        val boxesDetected: Int = 0,
+        val boxesRecognized: Int = 0,
+        val msPerBox: Double = 0.0,
+    )
 
     /**
      * Executes RapidOCR inference on [bitmap] at the given [maxSideLen],
      * strictly recycling the intermediate box image and any temporary bitmap copy.
      */
-    private fun detectBitmap(bitmap: Bitmap, maxSideLen: Int): ExtractedText {
+    private fun detectBitmap(bitmap: Bitmap, maxSideLen: Int): BitmapDetectionResult {
         val argbBitmap = if (bitmap.config != Bitmap.Config.ARGB_8888 || !bitmap.isMutable) {
             bitmap.copy(Bitmap.Config.ARGB_8888, true)
         } else {
@@ -385,7 +531,23 @@ class RapidOcrExtractor(
             }
         }
 
-        return processOcrResult(ocrResult)
+        val detTime = ocrResult.dbNetTime
+        val totalTime = ocrResult.detectTime
+        val recTime = (totalTime - detTime).coerceAtLeast(0.0)
+        val boxesDetected = ocrResult.textBlocks.size
+        val extracted = processOcrResult(ocrResult)
+        val boxesRecognized = extracted.blocks.sumOf { it.lines.sumOf { line -> line.elements.size } }
+        val msPerBox = if (boxesDetected > 0) recTime / boxesDetected else 0.0
+
+        return BitmapDetectionResult(
+            extractedText = extracted,
+            dbNetTimeMs = detTime,
+            recTimeMs = recTime,
+            detectTimeMs = totalTime,
+            boxesDetected = boxesDetected,
+            boxesRecognized = boxesRecognized,
+            msPerBox = msPerBox,
+        )
     }
 
     private fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
@@ -572,6 +734,12 @@ data class RapidOcrPassInfo(
     val rawText: String,
     val hasAnchoredDate: Boolean,
     val extractedText: ExtractedText = ExtractedText(rawText = rawText, blocks = emptyList()),
+    val decodeCropMs: Long = 0L,
+    val detMs: Double = 0.0,
+    val recMs: Double = 0.0,
+    val boxesDetected: Int = 0,
+    val boxesRecognized: Int = 0,
+    val msPerBox: Double = 0.0,
 )
 
 data class RapidOcrEvaluationData(
@@ -580,5 +748,6 @@ data class RapidOcrEvaluationData(
     val winningPass: String,
     val totalMs: Long,
     val passes: List<RapidOcrPassInfo>,
+    val isBudgetExceeded: Boolean = false,
 )
 

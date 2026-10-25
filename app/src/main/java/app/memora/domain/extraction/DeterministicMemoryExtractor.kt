@@ -49,28 +49,28 @@ class DeterministicMemoryExtractor(
 
         // 3. MMM YYYY (with optional day prefix or suffix)
         private val REGEX_MMM_YYYY = Regex(
-            """\b(?:(\d{1,2})[ -]+)?(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[ ,.-]+(?:(\d{1,2})[ ,.-]+)?(20\d{2})\b""",
+            """\b(?:(\d{1,2})[ -]+)?(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[ ,./-]+(?:(\d{1,2})[ ,./-]+)?(20\d{2})\b""",
             RegexOption.IGNORE_CASE
         )
 
         // 4. MM/YYYY (negative lookbehind/lookahead to prevent partial match of DD/MM/YYYY or YYYY/MM/DD)
         private val REGEX_MM_YYYY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[-/.](20\d{2})\b(?![/.-]\d)""")
 
-        // 5. MM/YY (2-digit year between 20..45)
-        private val REGEX_MM_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[/.-](\d{2})\b(?![/.-]\d)""")
+        // 5. MM/YY (2-digit year between 24..49)
+        private val REGEX_MM_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[/.-](\d{2})\b(?![/.-]?\d)""")
 
         // 6. DD/MM/YY or DD.MM.YY (2-digit year between 24..49)
         private val REGEX_DD_MM_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-](\d{2})\b(?![/.-]\d)""")
 
         // 7. DD MMM YY (e.g. "25 AUG 26" or "25-AUG-26")
         private val REGEX_DD_MMM_YY = Regex(
-            """\b(\d{1,2})[\s-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,.-]+(\d{2})\b""",
+            """\b(\d{1,2})[\s-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,./-]+(\d{2})\b""",
             RegexOption.IGNORE_CASE
         )
 
         // 8. MMM-YY or MMM YY (e.g. "AUG-26", "AUG 26") — month name + 2-digit year only
         private val REGEX_MMM_YY = Regex(
-            """\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,.-]+(\d{2})\b(?!\d)""",
+            """\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,./-]+(\d{2})\b(?!\d)""",
             RegexOption.IGNORE_CASE
         )
 
@@ -79,7 +79,7 @@ class DeterministicMemoryExtractor(
 
         // 10. MM.YYYY or MM.YY with dots/colons common on packaging (e.g. "09.2027", "09.27")
         private val REGEX_MM_DOT_YYYY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])\.(20\d{2})\b(?![/.-]\d)""")
-        private val REGEX_MM_DOT_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])\.(\d{2})\b(?![/.-]\d)""")
+        private val REGEX_MM_DOT_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])\.(\d{2})\b(?![/.-]?\d)""")
 
         // 11. DD-MMYY (fused MM and YY after DD-, e.g. "13-0127" -> 13/01/2027)
         private val REGEX_DD_MM_YY_FUSED = Regex("""(?<!\d[-/.])\b(0[1-9]|[12]\d|3[01])[-/.](0[1-9]|1[0-2])(2[4-9]|3[0-9]|20\d{2})\b(?![/.-]\d)""")
@@ -96,21 +96,78 @@ class DeterministicMemoryExtractor(
                     .replace(Regex("""/{2,}"""), "/")
                     .replace(Regex("""-{2,}"""), "-")
 
-                // 1. Context-aware separator recovery between digits:
+                // Rule 4: Non-alphanumeric separator '>' e.g. 13-01>27 -> 13-01/27, 15>09/26 -> 15/09/26
+                l = l.replace(Regex("""(?<=\b\d{1,2})>(?=\d{1,2}\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2}[/.-]\d{1,2})>(?=(?:\d{4}|\d{2})\b)"""), "/")
+
+                // Rule 3: Fuzzy anchors and months within edit distance 1 (EXF, MRR, PIRY) only next to date-shaped token
+                l = l.replace(Regex("""(?i)\bEXF(?=[:.\s]+\d)"""), "EXP")
+                l = l.replace(Regex("""(?i)\bPIRY\b"""), "EXPIRY")
+                l = l.replace(Regex("""(?i)\b(?:EX)?PIRY(?=\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b|[/.-]?\d)"""), "EXPIRY ")
+                l = l.replace(Regex("""(?i)\b(\d{1,2})\s*MRR(?=\s*(?:\d{4}|\d{2})\b)"""), "$1 MAR")
+                l = l.replace(Regex("""(?i)\bMRR(?=\s*(?:\d{4}|\d{2})\b)"""), "MAR")
+                l = l.replace(Regex("""(?i)\b(\d{1,2})MRR\b"""), "$1 MAR")
+
+                // Decouple digits/dots glued directly to anchor keywords (e.g. 2026EXP.DEC2029 -> 2026 EXP. DEC 2029)
+                l = l.replace(Regex("""(?i)(?<=\d)[.]?(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\b"""), " $1")
+
+                // Rule 2: Split glued anchor+date (e.g. EXPIRYAPR/2027, EXP.DEC2029, ExpiryDate, BestBefore, EXPIRYDATEDEC2028)
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\s*DATE(?=[A-Za-z0-9])"""), "$1 DATE ")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?=[/.\s-]?\d|\b)"""), "$1 $2")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|MFG|MFGD|MFD|PKD)\.([A-Za-z0-9])"""), "$1. $2")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|MFG|MFGD|MFD|PKD)(?=\d{1,2}[/.-]|\d{4}\b)"""), "$1 ")
+                l = l.replace(Regex("""(?i)\bExpiryDate\b"""), "Expiry Date")
+                l = l.replace(Regex("""(?i)\bBestBefore\b"""), "Best Before")
+                l = l.replace(Regex("""(?i)\b(BEST\s*BEFORE|USE\s*BY|USE\s*WITHIN|SHELF\s*LIFE)(?=(?:MONTHS?|DAYS?|YEARS?|\d))"""), "$1 ")
+                l = l.replace(Regex("""(?i)\bfromthedateof\b"""), "from the date of ")
+
+
+                // Rule 2: Dual date glued like 15JUN26711MRR2745 -> 15 JUN 2026 / 11 MAR 2027 45
+                l = l.replace(
+                    Regex("""(?i)(\d{1,2})\s*(JAN|FEB|MAR|MRR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2})[71/.-]?\s*(\d{1,2})\s*(JAN|FEB|MAR|MRR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2})(\d*)"""),
+                    "$1 $2 20$3 / $4 $5 20$6 $7"
+                )
+                l = l.replace(Regex("""(?i)\bMRR\b"""), "MAR")
+
+                // Rule 2: Month + Year glued (e.g. FEB28 -> FEB 28, DEC2029 -> DEC 2029, 17SEP26 -> 17 SEP 26, DEC2028MRARS2S -> DEC 2028 MRARS2S)
+                l = l.replace(Regex("""(?i)(?<=\b\d{1,2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"""), " $1")
+                l = l.replace(Regex("""(?i)\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{4}|\d{2})(?=[A-Za-z]|\b)"""), "$1 $2 ")
+
+                // Rule 2: Prefix glued before month like R25/FEB28 -> R25 / FEB 28
+                l = l.replace(Regex("""(?i)\b([A-Za-z0-9]{1,4})/(?=(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b)"""), "$1 / ")
+
+                // Rule 2: Date glued to junk e.g. 04/28B.NO: -> 04/28 B.NO:
+                l = l.replace(Regex("""(\b\d{1,2}[/.-](?:20\d{2}|\d{2}))(?=[A-Za-z])"""), "$1 ")
+
+                // Rule 5: Slash repair only in date-shaped tokens
+                // 06109/2026 -> 06/09/2026
+                l = l.replace(Regex("""\b(0[1-9]|[12]\d|3[01])[17Il](?=(0[1-9]|1[0-2])[/.-](20\d{2}|\d{2})\b)"""), "$1/")
+                // 08712126 -> 08/12/2026
+                l = l.replace(Regex("""\b(0[1-9]|[12]\d|3[01])[17Il](0[1-9]|1[0-2])[17Il](2[4-9]|3\d)\b"""), "$1/$2/20$3")
+                // 0776027 or 07/6027 -> 07/2027 (with year repair 6<->2)
+                l = l.replace(Regex("""\b(0[1-9]|1[0-2])[17Il/]60(2[4-9]|3\d)\b"""), "$1/20$2")
+                // 0712028 or 0872025 -> 07/2028, 08/2025
+                l = l.replace(Regex("""\b(0[1-9]|1[0-2])[17](202[4-9]|203\d)\b"""), "$1/$2")
+                // 05726 -> 05/26
+                l = l.replace(Regex("""(?<!\d)\b(0[1-9]|1[0-2])[17Il](2[4-9]|3\d)\b(?!\d)"""), "$1/$2")
+                // 0972026 -> 09/2026
+                l = l.replace(Regex("""(?<!\d)\b(0[1-9]|1[0-2])[17Il](20\d{2})\b(?!\d)"""), "$1/$2")
+
+                // 1. Context-aware separator recovery between digits (year must be strictly 2 or 4 digits, never 3):
                 // e.g., "07L2028" -> "07/2028", "06J09/2026" -> "06/09/2026", "29.07.2026"
-                l = l.replace(Regex("""(?<=\b\d{1,2})[lL|IjiJ!](?=\d{2,4}\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2})[lL|IjiJ!](?=(?:\d{4}|\d{2})\b)"""), "/")
                 l = l.replace(Regex("""(?<=\b\d{1,2})[lL|IjiJ!](?=\d{1,2}[/.-])"""), "/")
 
                 // Pipe separator recovery e.g. "12/05| 2926" -> "12/05/2026"
-                l = l.replace(Regex("""(?<=\b\d{1,2}[/.-]\d{1,2})\s*\|\s*(?=\d{2,4}\b)"""), "/")
-                l = l.replace(Regex("""(?<=\b\d{1,2})\s*\|\s*(?=\d{2,4}\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2}[/.-]\d{1,2})\s*\|\s*(?=(?:\d{4}|\d{2})\b)"""), "/")
+                l = l.replace(Regex("""(?<=\b\d{1,2})\s*\|\s*(?=(?:\d{4}|\d{2})\b)"""), "/")
 
                 // Correct year 20xx OCR error read as 29xx e.g. 2926 -> 2026, 2928 -> 2028
                 l = l.replace(Regex("""(?<=[/.-])29(2[4-9]|3[0-9])\b"""), "20$1")
 
-                // 2. Colon as separator when directly preceded/followed by digits e.g. 15:09:26 -> 15/09/26
-                l = l.replace(Regex("""(?<=\b\d{1,2}):(?=\d{1,2}[:/.-]\d{2,4}\b)"""), "/")
-                l = l.replace(Regex("""(?<=[/.-]\d{1,2}):(?=\d{2,4}\b)"""), "/")
+                // 2. Colon as separator when directly preceded/followed by digits (year strictly 2 or 4 digits):
+                l = l.replace(Regex("""(?<=\b\d{1,2}):(?=\d{1,2}[:/.-](?:\d{4}|\d{2})\b)"""), "/")
+                l = l.replace(Regex("""(?<=[/.-]\d{1,2}):(?=(?:\d{4}|\d{2})\b)"""), "/")
 
                 // 3. Decouple batch/lot prefix fused directly to date e.g. "42822/06/2026" -> "428 22/06/2026"
                 l = l.replace(Regex("""(\b\d{1,5})((?:0[1-9]|[12]\d|3[01])[/.-](?:0[1-9]|1[0-2])[/.-]20\d{2}\b)"""), "$1 $2")
@@ -132,7 +189,7 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""(?i)\b3RY\.?(\d{2})\b"""), "EXP: 09/20$1")
 
                 // 4. Character substitutions between digits:
-                // Protect LOT / BATCH codes (e.g., LOT 4B7 stays LOT 4B7)
+                // Rule 9: Protect LOT / BATCH codes (e.g., LOT 4B7 stays LOT 4B7)
                 if (!Regex("""(?i)\b(?:LOT|BATCH|B\.?NO)\b""").containsMatchIn(l)) {
                     l = l.replace(Regex("(?i)(?<=\\d)[bB](?=\\d)"), "8")
                 }
@@ -249,7 +306,9 @@ class DeterministicMemoryExtractor(
         val lineIndex: Int? = null,
         val temporalStatus: TemporalStatus = TemporalStatus.UNKNOWN,
         val scoreComponents: CandidateScoreComponents = CandidateScoreComponents(),
+        val isDerivedShelfLife: Boolean = false,
     )
+
 
     override suspend fun extractCandidate(rawText: String, imageUri: android.net.Uri?): Result<ExtractedMemoryCandidate> =
         extractCandidate(rawText, imageUri, null)
@@ -354,6 +413,14 @@ class DeterministicMemoryExtractor(
         return extractLocalResultFromStructuredLines(structuredLines, rawText)
     }
 
+    /**
+     * Aggregates and extracts dates across multiple OCR passes.
+     */
+    fun extractFromPasses(passTexts: List<String>): LocalExtractionResult {
+        val combinedText = passTexts.filter { it.isNotBlank() }.joinToString("\n")
+        return extractLocalResult(combinedText)
+    }
+
     private fun extractLocalResultFromStructuredLines(
         structuredLines: List<StructuredLine>,
         rawText: String,
@@ -393,13 +460,44 @@ class DeterministicMemoryExtractor(
                     else -> ContextCategory.NONE
                 }
 
-                // If on this line there are 2 dates and no explicit label in product packaging, infer MFG (earlier) and EXP (later)
-                if (domain == DocumentDomain.PRODUCT_PACKAGING && category == ContextCategory.NONE && sortedMatches.size == 2) {
-                    val other = if (i == 0) sortedMatches[1] else sortedMatches[0]
-                    if (current.date.isAfter(other.date)) {
-                        category = ContextCategory.EXPIRATION
-                    } else if (current.date.isBefore(other.date)) {
-                        category = ContextCategory.MFG_DATE
+                if (category == ContextCategory.NONE) {
+                    val isImportContext = Regex("""(?i)\b(?:IMPORT|IMPORTED|MONTH\s+OF\s+IMPORT|DATE\s+OF\s+IMPORT)\b""").containsMatchIn(textBefore)
+                    if (isImportContext) {
+                        category = ContextCategory.PURCHASE_DATE
+                    }
+                }
+
+
+                // Rule 1: Anchor Scoping
+                // An anchor (EXP, EXPIRY, USE BY, BEST BEFORE) binds to the NEAREST following date, not an earlier one.
+                // e.g. "USE BY 18 SEP 25 17 SEP 26" -> 18 SEP 25 is MFG_DATE, 17 SEP 26 is BEST_BEFORE
+                // e.g. "MFG.JAN.2026 EXP.DEC.2029" -> JAN.2026 is MFG_DATE, DEC.2029 is EXPIRATION
+                if (sortedMatches.size == 2) {
+                    val m0 = sortedMatches[0]
+                    val m1 = sortedMatches[1]
+                    if (m0.date.isBefore(m1.date)) {
+                        val beforeM0 = trimmedLine.substring(0, m0.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3)
+                        val between = trimmedLine.substring(m0.endIndex, m1.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }
+                        val cat0 = classifyWords(beforeM0)
+                        val catBetween = classifyWords(between)
+
+                        if (i == 0) {
+                            if (cat0 in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE) && catBetween == ContextCategory.NONE) {
+                                category = ContextCategory.MFG_DATE
+                            } else if (cat0 == ContextCategory.NONE && catBetween in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE)) {
+                                category = ContextCategory.MFG_DATE
+                            } else if (cat0 == ContextCategory.NONE && catBetween == ContextCategory.NONE && domain == DocumentDomain.PRODUCT_PACKAGING) {
+                                category = ContextCategory.MFG_DATE
+                            }
+                        } else if (i == 1) {
+                            if (cat0 in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE) && catBetween == ContextCategory.NONE) {
+                                category = cat0
+                            } else if (catBetween in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE)) {
+                                category = catBetween
+                            } else if (cat0 == ContextCategory.NONE && catBetween == ContextCategory.NONE && domain == DocumentDomain.PRODUCT_PACKAGING) {
+                                category = ContextCategory.EXPIRATION
+                            }
+                        }
                     }
                 }
 
@@ -434,22 +532,23 @@ class DeterministicMemoryExtractor(
             }
         }
 
-        // Check for "Best before N months from manufacture/packaging"
+        // Rule 8: Check for "Best before N months" with printed MFG date -> MFG + N months, stored as YYYY-MM
         val monthsFromMfgRegex = Regex(
-            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE)\b""",
+            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE))?\b""",
             RegexOption.IGNORE_CASE
         )
-        monthsFromMfgRegex.find(rawText)?.let { match ->
-            val nMonths = match.groupValues[1].toLongOrNull()
+        val monthsMatch = monthsFromMfgRegex.find(rawText)
+        if (monthsMatch != null) {
+            val nMonths = monthsMatch.groupValues[1].toLongOrNull()
             if (nMonths != null) {
                 val mfgCandidate = allCandidates.firstOrNull { it.category == ContextCategory.MFG_DATE }
-                    ?: allCandidates.firstOrNull()
+                    ?: allCandidates.minByOrNull { it.date }
                 if (mfgCandidate != null) {
                     val computedExpiry = mfgCandidate.date.plusMonths(nMonths)
                     val temporal = computeTemporalStatus(computedExpiry, today)
                     val scoreComps = scoreCandidateComponents(
                         date = computedExpiry,
-                        hasExplicitDay = mfgCandidate.hasExplicitDay,
+                        hasExplicitDay = false,
                         category = ContextCategory.BEST_BEFORE,
                         domain = domain,
                         temporal = temporal,
@@ -457,14 +556,39 @@ class DeterministicMemoryExtractor(
                     allCandidates.add(
                         Candidate(
                             date = computedExpiry,
-                            hasExplicitDay = mfgCandidate.hasExplicitDay,
+                            hasExplicitDay = false,
                             category = ContextCategory.BEST_BEFORE,
                             evidenceText = "Best before $nMonths months from ${mfgCandidate.date}",
-                            lineSnippet = match.value,
+                            lineSnippet = monthsMatch.value,
                             temporalStatus = temporal,
                             scoreComponents = scoreComps,
+                            isDerivedShelfLife = true,
                         )
                     )
+                }
+            }
+        } else {
+            // Task 7: If "best before N months from mfg" exists but N is unreadable, treat a bare date as MFG:
+            // return none, not the MFG date (fixes 104338748).
+            val unreadableShelfLifeRegex = Regex(
+                """\b(?:BEST\s*BEFORE|USE\s*WITHIN|CONSUME\s*WITHIN|VALID\s*FOR|SHELF\s*LIFE\s*(?:IS|:)?)\s*(?:MONTHS?|DAYS?|YEARS?)\b(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE|MLG))?""",
+                RegexOption.IGNORE_CASE
+            )
+            if (unreadableShelfLifeRegex.containsMatchIn(rawText)) {
+                for (i in allCandidates.indices) {
+                    if (allCandidates[i].category == ContextCategory.NONE) {
+                        val c = allCandidates[i]
+                        allCandidates[i] = c.copy(
+                            category = ContextCategory.MFG_DATE,
+                            scoreComponents = scoreCandidateComponents(
+                                date = c.date,
+                                hasExplicitDay = c.hasExplicitDay,
+                                category = ContextCategory.MFG_DATE,
+                                domain = domain,
+                                temporal = c.temporalStatus,
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -537,7 +661,7 @@ class DeterministicMemoryExtractor(
             ExtractedDateCandidate(
                 eventType = eventType,
                 eventDate = c.date,
-                confidence = if (c.category != ContextCategory.NONE) CONFIDENCE_HIGH else CONFIDENCE_LOW,
+                confidence = if (c.isDerivedShelfLife) CONFIDENCE_LOW else if (c.category != ContextCategory.NONE) CONFIDENCE_HIGH else CONFIDENCE_LOW,
                 context = contextLabel,
                 hasExplicitDay = c.hasExplicitDay,
                 role = role,
@@ -592,7 +716,7 @@ class DeterministicMemoryExtractor(
                         val bothUnlabelled = top1.category == ContextCategory.NONE && runnerUp.category == ContextCategory.NONE
 
                         val bothInSameTemporalDirection = (top1.date >= today && runnerUp.date >= today) || (top1.date < today && runnerUp.date < today)
-                        // If one is past and one is future, or on product packaging, earlier is MFG/start and later is actionable EXP/end
+                        // If one is past and one is future, or on packaging, earlier is MFG/start and later is actionable EXP/end
                         val isEarlierLaterPair = bothUnlabelled &&
                             (top1.date != runnerUp.date) && (!bothInSameTemporalDirection || domain == DocumentDomain.PRODUCT_PACKAGING)
 
@@ -602,6 +726,12 @@ class DeterministicMemoryExtractor(
                             isAmbiguous = true
                             selectedCandidate = null
                             resolutionExplanation = "Ambiguous competing dates for ${top1.category.name}: ${top1.date} (score ${top1.scoreComponents.totalScore.toInt()}) vs ${runnerUp.date} (score ${runnerUp.scoreComponents.totalScore.toInt()}). User confirmation required."
+                        } else if (isEarlierLaterPair) {
+                            val later = if (top1.date > runnerUp.date) top1 else runnerUp
+                            val earlier = if (top1.date < runnerUp.date) top1 else runnerUp
+                            isAmbiguous = false
+                            selectedCandidate = later
+                            resolutionExplanation = "Resolved earlier/later pair: ${earlier.date} inferred as manufacture, ${later.date} selected as actionable expiry."
                         } else {
                             isAmbiguous = false
                             selectedCandidate = top1
@@ -616,9 +746,11 @@ class DeterministicMemoryExtractor(
         val dateType = selectedCandidate?.category?.takeIf { it != ContextCategory.NONE }?.name
         val confidence = when {
             selectedCandidate == null -> 0f
+            selectedCandidate.isDerivedShelfLife -> CONFIDENCE_LOW
             selectedCandidate.category != ContextCategory.NONE -> CONFIDENCE_HIGH
             else -> CONFIDENCE_LOW
         }
+
 
         return LocalExtractionResult(
             title = detectedTitle,
@@ -680,7 +812,9 @@ class DeterministicMemoryExtractor(
 
         val isPackaging = upper.contains("MFG") || upper.contains("EXP") || upper.contains("BEST BEFORE") ||
             upper.contains("USE BY") || upper.contains("PKD") || upper.contains("BATCH") ||
-            upper.contains("LOT NO") || upper.contains("NET WT") || upper.contains("INGREDIENTS")
+            upper.contains("LOT NO") || upper.contains("NET WT") || upper.contains("INGREDIENTS") ||
+            upper.contains("/ML") || upper.contains("MRP") || upper.contains("/-") ||
+            upper.contains("NET QTY") || upper.contains("NET QUANTITY")
 
         val isSubscriptionReturn = upper.contains("SUBSCRIPTION") || upper.contains("MEMBERSHIP") ||
             upper.contains("RETURN WINDOW") || upper.contains("RETURN BY")
@@ -863,7 +997,7 @@ class DeterministicMemoryExtractor(
             val month = match.groupValues[1].toInt()
             val rawYear = match.groupValues[2].toInt()
             // Plausible 2-digit years for expiration/reminders
-            if (rawYear in 20..49) {
+            if (rawYear in 24..49) {
                 val year = 2000 + rawYear
                 addIfNonOverlapping(range, hasExplicitDay = false) {
                     LocalDate.of(year, month, 1)
@@ -940,7 +1074,7 @@ class DeterministicMemoryExtractor(
             val range = match.range
             val month = match.groupValues[1].toInt()
             val rawYear = match.groupValues[2].toInt()
-            if (rawYear in 20..49) {
+            if (rawYear in 24..49) {
                 val year = 2000 + rawYear
                 addIfNonOverlapping(range, hasExplicitDay = false) {
                     LocalDate.of(year, month, 1)
@@ -978,16 +1112,26 @@ class DeterministicMemoryExtractor(
 
         val joined = words.joinToString(" ").uppercase()
         val clean = joined.replace(Regex("""[^A-Z0-9 ]"""), " ").replace(Regex("""\s+"""), " ").trim()
-        val tokens = clean.split(" ").filter { it.isNotBlank() }.toSet()
+        val tokensList = clean.split(" ").filter { it.isNotBlank() }
+        val tokens = tokensList.toSet()
+
+        // Rule 1: Anchor Scoping - scan tokens from nearest to furthest
+        for (token in tokensList.reversed()) {
+            if (token in setOf("EXP", "EXPIRY", "EXPIRES", "EXPIRE", "EXPIRATION", "EXPD")) return ContextCategory.EXPIRATION
+            if (token in setOf("BEST", "BEFORE", "USE", "BB")) return ContextCategory.BEST_BEFORE
+            if (token in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED")) return ContextCategory.MFG_DATE
+            if (token in setOf("DUE")) return ContextCategory.DUE_DATE
+            if (token in setOf("IMPORT", "IMPORTED", "PURCHASE", "PURCHASED", "ORDER", "ORDERED", "BOUGHT")) return ContextCategory.PURCHASE_DATE
+        }
 
         // 1. Manufacturing / batch
-        val isMfg = tokens.any { it in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED", "DOM") } ||
+        val isMfg = tokens.any { it in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED") } ||
             clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE")
         if (isMfg) return ContextCategory.MFG_DATE
 
-        // 2. Purchase / Order
-        val isPurchase = tokens.any { it in setOf("PURCHASE", "PURCHASED", "ORDER", "ORDERED", "BOUGHT") } ||
-            clean.contains("PURCHASE DATE") || clean.contains("DATE OF PURCHASE") || clean.contains("ORDER DATE") || clean.contains("BOUGHT ON") || clean.contains("DATE OF SALE")
+        // 2. Purchase / Order / Import
+        val isPurchase = tokens.any { it in setOf("PURCHASE", "PURCHASED", "ORDER", "ORDERED", "BOUGHT", "IMPORT", "IMPORTED") } ||
+            clean.contains("PURCHASE DATE") || clean.contains("DATE OF PURCHASE") || clean.contains("ORDER DATE") || clean.contains("BOUGHT ON") || clean.contains("DATE OF SALE") || clean.contains("DATE OF IMPORT") || clean.contains("IMPORT DATE")
         if (isPurchase) return ContextCategory.PURCHASE_DATE
 
         // 3. Bill / Invoice / Statement / Issuance / Reading

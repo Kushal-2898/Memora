@@ -55,13 +55,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.exifinterface.media.ExifInterface
 import app.memora.R
 import app.memora.platform.camera.CameraXManager
 import app.memora.platform.camera.PackagingDetectionResult
 import app.memora.platform.camera.ScanDocumentAnalyzer
+import app.memora.platform.image.DebugCaptureSaver
 import app.memora.platform.image.ImageStorage
+import app.memora.platform.image.NormalizedRect
+import app.memora.platform.image.ReticleCaptureMetadata
 import kotlinx.coroutines.delay
+import app.memora.platform.logging.AppLog
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -90,6 +100,8 @@ fun CameraPreviewView(
     var isTorchOn by remember { mutableStateOf(false) }
     var isDocumentDetected by remember { mutableStateOf(false) }
     var detectedPackaging by remember { mutableStateOf<PackagingDetectionResult?>(null) }
+    var previewCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var reticleCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     val analyzer = remember {
         ScanDocumentAnalyzer(
@@ -117,10 +129,53 @@ fun CameraPreviewView(
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
         val targetFile = imageStorage.createCaptureFile("scan")
+        val currentPreviewCoords = previewCoordinates
+        val currentReticleCoords = reticleCoordinates
+
         scope.launch {
             val result = cameraManager.takePicture(targetFile)
             result.fold(
-                onSuccess = { file -> 
+                onSuccess = { file ->
+                    if (currentPreviewCoords != null && currentReticleCoords != null &&
+                        currentPreviewCoords.isAttached && currentReticleCoords.isAttached
+                    ) {
+                        try {
+                            val bounds = currentPreviewCoords.localBoundingBoxOf(currentReticleCoords)
+                            val pW = currentPreviewCoords.size.width
+                            val pH = currentPreviewCoords.size.height
+                            if (pW > 0 && pH > 0) {
+                                val normRect = NormalizedRect(
+                                    left = (bounds.left / pW).coerceIn(0f, 1f),
+                                    top = (bounds.top / pH).coerceIn(0f, 1f),
+                                    right = (bounds.right / pW).coerceIn(0f, 1f),
+                                    bottom = (bounds.bottom / pH).coerceIn(0f, 1f),
+                                )
+                                withContext(Dispatchers.IO) {
+                                    val rotation = runCatching {
+                                        val exif = ExifInterface(file.absolutePath)
+                                        when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                                            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                                            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                                            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                                            else -> 0
+                                        }
+                                    }.getOrDefault(0)
+
+                                    val metadata = ReticleCaptureMetadata(
+                                        normalizedRect = normRect,
+                                        previewWidth = pW,
+                                        previewHeight = pH,
+                                        rotationDegrees = rotation,
+                                    )
+                                    DebugCaptureSaver.saveCapture(context, file, metadata)
+                                }
+                            }
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (e: Throwable) {
+                            AppLog.w("CameraPreviewView", "Failed to compute or save reticle metadata: ${e.message}", e)
+                        }
+                    }
                     onPhotoCaptured(file)
                 },
                 onFailure = { err -> 
@@ -189,7 +244,8 @@ fun CameraPreviewView(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .onGloballyPositioned { previewCoordinates = it },
     ) {
         if (cameraManager != null) {
             AndroidView(
@@ -256,6 +312,7 @@ fun CameraPreviewView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(0.75f)
+                    .onGloballyPositioned { reticleCoordinates = it }
                     .border(reticleBorderWidth, reticleBorderColor, RoundedCornerShape(20.dp))
                     .background(
                         if (isDocumentDetected) Color(0x1A4CAF50) else Color.Transparent,

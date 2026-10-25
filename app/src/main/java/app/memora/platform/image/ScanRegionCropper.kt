@@ -24,7 +24,32 @@ object ScanRegionCropper {
     private const val MAX_LONG_SIDE_PX = 3840
     private const val MIN_SHORT_SIDE_PX = 1000
 
-    fun cropReticleRegion(imagePath: String): Bitmap? {
+    data class ReticleCropDetails(
+        val bitmap: Bitmap,
+        val fullWidth: Int,
+        val fullHeight: Int,
+        val orientedWidth: Int,
+        val orientedHeight: Int,
+        val cropRectPx: android.graphics.Rect,
+        val cropLeftPct: Float,
+        val cropTopPct: Float,
+        val cropWidthPct: Float,
+        val cropHeightPct: Float,
+    )
+
+    fun cropReticleRegion(
+        imagePath: String,
+        metadata: ReticleCaptureMetadata? = null,
+        forceFallbackCrop: Boolean = false,
+    ): Bitmap? {
+        return cropReticleRegionDetailed(imagePath, metadata, forceFallbackCrop)?.bitmap
+    }
+
+    fun cropReticleRegionDetailed(
+        imagePath: String,
+        metadata: ReticleCaptureMetadata? = null,
+        forceFallbackCrop: Boolean = false,
+    ): ReticleCropDetails? {
         val file = File(imagePath)
         if (!file.exists() || file.length() == 0L) return null
 
@@ -70,20 +95,44 @@ object ScanRegionCropper {
                 decoded
             }
 
-            // 2. Crop central reticle region (88% width, 82% height)
-            val cropWidth = (oriented.width * 0.88f).toInt()
-            val cropHeight = (oriented.height * 0.82f).toInt()
-            val cropLeft = ((oriented.width - cropWidth) / 2).coerceAtLeast(0)
-            val cropTop = ((oriented.height - cropHeight) / 2).coerceAtLeast(0)
+            // 2. Crop reticle region: use metadata if available, otherwise fallback to 88%x82% centered
+            val reticleMeta = if (forceFallbackCrop) null else (metadata ?: DebugCaptureSaver.readCompanionMetadata(file))
+            val normCropRect = if (reticleMeta != null) {
+                runCatching {
+                    ReticleToPhotoCoordinateMapper.mapPreviewToOrientedNormalized(
+                        previewWidth = reticleMeta.previewWidth,
+                        previewHeight = reticleMeta.previewHeight,
+                        reticle = reticleMeta.normalizedRect,
+                        paddingPercent = ReticleToPhotoCoordinateMapper.DEFAULT_PADDING_PERCENT,
+                    )
+                }.getOrElse {
+                    AppLog.w("ScanRegionCropper", "Reticle mapping failed, falling back to central crop: ${it.message}")
+                    ReticleToPhotoCoordinateMapper.fallbackCentralCrop()
+                }
+            } else {
+                ReticleToPhotoCoordinateMapper.fallbackCentralCrop()
+            }
+
+            val cropWidth = (oriented.width * normCropRect.width).toInt().coerceIn(1, oriented.width)
+            val cropHeight = (oriented.height * normCropRect.height).toInt().coerceIn(1, oriented.height)
+            val cropLeft = (oriented.width * normCropRect.left).toInt().coerceIn(0, oriented.width - cropWidth)
+            val cropTop = (oriented.height * normCropRect.top).toInt().coerceIn(0, oriented.height - cropHeight)
 
             val reticleCrop = Bitmap.createBitmap(oriented, cropLeft, cropTop, cropWidth, cropHeight)
+            val cropLeftPct = (cropLeft.toFloat() / oriented.width) * 100f
+            val cropTopPct = (cropTop.toFloat() / oriented.height) * 100f
+            val cropWidthPct = (cropWidth.toFloat() / oriented.width) * 100f
+            val cropHeightPct = (cropHeight.toFloat() / oriented.height) * 100f
+            val orientedW = oriented.width
+            val orientedH = oriented.height
+
             if (reticleCrop != oriented) {
                 oriented.recycle()
             }
 
             // 3. Floor shorter side to at least MIN_SHORT_SIDE_PX for dot-matrix pixel density
             val currentShortSide = min(reticleCrop.width, reticleCrop.height)
-            if (currentShortSide in 1 until MIN_SHORT_SIDE_PX) {
+            val finalBitmap = if (currentShortSide in 1 until MIN_SHORT_SIDE_PX) {
                 val scale = MIN_SHORT_SIDE_PX.toFloat() / currentShortSide
                 val targetW = (reticleCrop.width * scale).toInt()
                 val targetH = (reticleCrop.height * scale).toInt()
@@ -93,6 +142,19 @@ object ScanRegionCropper {
             } else {
                 reticleCrop
             }
+
+            ReticleCropDetails(
+                bitmap = finalBitmap,
+                fullWidth = fullWidth,
+                fullHeight = fullHeight,
+                orientedWidth = orientedW,
+                orientedHeight = orientedH,
+                cropRectPx = android.graphics.Rect(cropLeft, cropTop, cropLeft + cropWidth, cropTop + cropHeight),
+                cropLeftPct = cropLeftPct,
+                cropTopPct = cropTopPct,
+                cropWidthPct = cropWidthPct,
+                cropHeightPct = cropHeightPct,
+            )
         }.onFailure { err ->
             AppLog.e("ScanRegionCropper", "Failed to crop reticle region: ${err.message}", err)
         }.getOrNull()

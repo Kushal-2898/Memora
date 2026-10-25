@@ -103,7 +103,30 @@ class CorpusExtractionBaselineTest {
         println("Target Directory: ${evalDir.absolutePath}")
         println("==================================================")
 
-        val extractor = app.memora.platform.ocr.RapidOcrExtractor(context)
+        val args = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+        val maxSide = args.getString("maxSide")?.toIntOrNull() ?: 1536
+        val boxThresh = args.getString("boxThresh")?.toFloatOrNull() ?: 0.20f
+        val boxScoreThresh = args.getString("boxScoreThresh")?.toFloatOrNull() ?: 0.40f
+        val unclip = args.getString("unclip")?.toFloatOrNull() ?: 2.0f
+        val threads = args.getString("threads")?.toIntOrNull() ?: 4
+        val doAngle = args.getString("doAngle")?.toBooleanStrictOrNull() ?: true
+        val twoStage = args.getString("twoStage")?.toBooleanStrictOrNull() ?: false
+        val runTag = args.getString("runTag") ?: "baseline"
+
+        println("==================================================")
+        println("SWEEP CONFIG: runTag=$runTag maxSide=$maxSide boxThresh=$boxThresh unclip=$unclip threads=$threads doAngle=$doAngle twoStage=$twoStage")
+        println("==================================================")
+
+        val config = app.memora.platform.ocr.RapidOcrConfig(
+            maxSideLen = maxSide,
+            boxScoreThresh = boxScoreThresh,
+            boxThresh = boxThresh,
+            unClipRatio = unclip,
+            numThreads = threads,
+            doAngle = doAngle,
+            isTwoStage = twoStage,
+        )
+        val extractor = app.memora.platform.ocr.RapidOcrExtractor(context, config)
         val prodResult = app.memora.domain.benchmark.ExpiryEvaluationHarness.runEvaluation(
             context = context,
             inputDir = evalDir,
@@ -113,7 +136,12 @@ class CorpusExtractionBaselineTest {
         prodResult.fold(
             onSuccess = { summary ->
                 println(summary.formattedSummary)
-                val exportedResult = app.memora.domain.benchmark.ExpiryEvaluationHarness.exportCsvToDownloads(context, summary.generatedCsvFile)
+                val exportName = "memora_eval_${runTag}.csv"
+                val exportedResult = app.memora.domain.benchmark.ExpiryEvaluationHarness.exportCsvToDownloads(
+                    context = context,
+                    sourceCsvFile = summary.generatedCsvFile,
+                    customFilename = exportName,
+                )
                 exportedResult.fold(
                     onSuccess = { dest -> println("Exported Production CSV to Downloads: ${dest.absolutePath}") },
                     onFailure = { err -> println("Export to Downloads failed: ${err.message}") }
@@ -151,6 +179,60 @@ class CorpusExtractionBaselineTest {
             },
             onFailure = { err ->
                 println("All-Passes Evaluation Harness Failed: ${err.message}")
+            }
+        )
+    }
+
+    @Test
+    fun exportDebugArtifacts() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dataDir = File(context.applicationInfo.dataDir)
+        try {
+            Runtime.getRuntime().exec(arrayOf("chmod", "751", dataDir.absolutePath)).waitFor()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        val debugSrcDir = File(context.filesDir, "evaluation/debug")
+        val outZip = File(context.getExternalFilesDir(null), "debug_artifacts.zip")
+        if (debugSrcDir.exists() && debugSrcDir.isDirectory) {
+            java.util.zip.ZipOutputStream(outZip.outputStream().buffered()).use { zos ->
+                debugSrcDir.walkTopDown().filter { it.isFile }.forEach { file ->
+                    val relPath = debugSrcDir.toURI().relativize(file.toURI()).path
+                    val entry = java.util.zip.ZipEntry(relPath)
+                    zos.putNextEntry(entry)
+                    file.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+            println("Successfully exported debug artifacts to: ${outZip.absolutePath} (${outZip.length()} bytes)")
+        } else {
+            println("Debug directory does not exist: ${debugSrcDir.absolutePath}")
+        }
+    }
+
+    @Test
+    fun runCropComparisonHarness() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val debugCapturesDir = app.memora.platform.image.DebugCaptureSaver.getDebugCapturesDir(context)
+        val evalDir = app.memora.domain.benchmark.ExpiryEvaluationHarness.getEvaluationDirectory(context)
+
+        println("==================================================")
+        println("STARTING ON-DEVICE CROP COMPARISON HARNESS")
+        println("Debug Captures Dir: ${debugCapturesDir.absolutePath}")
+        println("==================================================")
+
+        val result = app.memora.domain.benchmark.ExpiryEvaluationHarness.runCropComparison(
+            context = context,
+            capturesDir = debugCapturesDir,
+        )
+
+        result.fold(
+            onSuccess = { summary ->
+                println(summary.formattedSummary)
+            },
+            onFailure = { err ->
+                println("Crop Comparison Failed: ${err.message}")
             }
         )
     }

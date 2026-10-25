@@ -2,14 +2,22 @@ package app.memora.domain.benchmark
 
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.graphics.Rect
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import app.memora.BuildConfig
 import app.memora.domain.extraction.DeterministicMemoryExtractor
+import app.memora.domain.extraction.LocalExtractionResult
 import app.memora.domain.scheduler.ClockProvider
 import app.memora.domain.scheduler.SystemClockProvider
+import app.memora.platform.image.DebugCaptureSaver
+import app.memora.platform.image.ImagePreprocessor
+import app.memora.platform.image.ScanRegionCropper
 import app.memora.platform.logging.AppLog
+import app.memora.platform.ocr.RapidOcrEvaluationData
 import app.memora.platform.ocr.RapidOcrExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,6 +62,11 @@ object ExpiryEvaluationHarness {
         val extractedDate: String,
         val foundExpectedDateAlone: Boolean,
         val rawText: String,
+        val detMs: Double = 0.0,
+        val recMs: Double = 0.0,
+        val boxesDetected: Int = 0,
+        val boxesRecognized: Int = 0,
+        val msPerBox: Double = 0.0,
     )
 
     data class EvaluationRow(
@@ -217,6 +230,7 @@ object ExpiryEvaluationHarness {
                 val imageFile = resolveImageFile(rootDir, assignedSplit, record.filename)
 
                 val row = evaluateSingleImage(
+                    rootDir = rootDir,
                     splitName = assignedSplit,
                     record = record,
                     imageFile = imageFile,
@@ -276,6 +290,7 @@ object ExpiryEvaluationHarness {
                 val imageFile = File(tuningDir, record.filename)
                 allRows.add(
                     evaluateSingleImage(
+                        rootDir = rootDir,
                         splitName = "tuning",
                         record = record,
                         imageFile = imageFile,
@@ -290,6 +305,7 @@ object ExpiryEvaluationHarness {
                 val imageFile = File(heldoutDir, record.filename)
                 allRows.add(
                     evaluateSingleImage(
+                        rootDir = rootDir,
                         splitName = "heldout",
                         record = record,
                         imageFile = imageFile,
@@ -348,6 +364,7 @@ object ExpiryEvaluationHarness {
     }
 
     private suspend fun evaluateSingleImage(
+        rootDir: File,
         splitName: String,
         record: LabelRecord,
         imageFile: File,
@@ -404,6 +421,16 @@ object ExpiryEvaluationHarness {
         val isCorrect = isDateMatch(expected = expectedDateRaw, extracted = extractedDateIso)
         val correctStr = if (isCorrect) "Y" else "N"
 
+        if (!isCorrect) {
+            saveDebugArtifactsForFailure(
+                rootDir = rootDir,
+                filename = filename,
+                imageFile = imageFile,
+                evalData = evalData,
+                parsedResult = parsedLocalResult,
+            )
+        }
+
         // Evaluate each executed pass independently to see if that pass ALONE finds the expected date
         val passOutcomes = passes.map { pass ->
             val passParsed = if (pass.extractedText.blocks.isNotEmpty()) {
@@ -419,6 +446,11 @@ object ExpiryEvaluationHarness {
                 extractedDate = passDateStr,
                 foundExpectedDateAlone = passFoundExpected,
                 rawText = pass.rawText,
+                detMs = pass.detMs,
+                recMs = pass.recMs,
+                boxesDetected = pass.boxesDetected,
+                boxesRecognized = pass.boxesRecognized,
+                msPerBox = pass.msPerBox,
             )
         }
 
@@ -447,9 +479,11 @@ object ExpiryEvaluationHarness {
         )
 
         val msPerPassStr = passOutcomes.joinToString("; ") { outcome ->
-            if (runAllPasses) {
-                val aloneFlag = if (outcome.foundExpectedDateAlone) "FOUND(${outcome.extractedDate})" else "MISS(${outcome.extractedDate})"
-                "${outcome.passName}: ${outcome.durationMs}ms [$aloneFlag]"
+            if (outcome.detMs > 0.0 || outcome.recMs > 0.0) {
+                val boxInfo = if (outcome.boxesDetected > 0) {
+                    ", boxes=${outcome.boxesDetected}, ms_per_box=${String.format(Locale.US, "%.1f", outcome.msPerBox)}ms"
+                } else ""
+                "${outcome.passName}: ${outcome.durationMs}ms (det=${outcome.detMs.toInt()}ms, rec=${outcome.recMs.toInt()}ms$boxInfo)"
             } else {
                 "${outcome.passName}: ${outcome.durationMs}ms"
             }
@@ -491,6 +525,145 @@ object ExpiryEvaluationHarness {
             "[$splitName][$filename] Expected: $expectedDateRaw | Extracted: $extractedDateIso | Correct: $correctStr | InRawOCR: $expectedDateInRawOcrStr | Failure: $failureType | Winner: $winningPass (${totalMs}ms)"
         )
         return row
+    }
+
+    private fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
+        if (degrees == 0f) return source
+        val matrix = Matrix().apply { postRotate(degrees) }
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
+    private fun saveDebugArtifactsForFailure(
+        rootDir: File,
+        filename: String,
+        imageFile: File,
+        evalData: RapidOcrEvaluationData?,
+        parsedResult: LocalExtractionResult,
+    ) {
+        try {
+            val debugDir = File(File(rootDir, "debug"), filename)
+            if (!debugDir.exists()) debugDir.mkdirs()
+
+            // 1. What OCR saw: crop bitmap + variant bitmaps (contrast, inverted, rotated) + crop rectangle
+            val cropDetails = ScanRegionCropper.cropReticleRegionDetailed(imageFile.absolutePath)
+            if (cropDetails != null) {
+                val cropInfoFile = File(debugDir, "crop_info.txt")
+                cropInfoFile.writeText(
+                    buildString {
+                        appendLine("Full Image: ${cropDetails.fullWidth}x${cropDetails.fullHeight}")
+                        appendLine("Oriented Image: ${cropDetails.orientedWidth}x${cropDetails.orientedHeight}")
+                        appendLine("Crop Rect (px): left=${cropDetails.cropRectPx.left}, top=${cropDetails.cropRectPx.top}, right=${cropDetails.cropRectPx.right}, bottom=${cropDetails.cropRectPx.bottom}, width=${cropDetails.cropRectPx.width()}, height=${cropDetails.cropRectPx.height()}")
+                        appendLine("Crop Rect (%): left=${String.format(Locale.ROOT, "%.2f", cropDetails.cropLeftPct)}%, top=${String.format(Locale.ROOT, "%.2f", cropDetails.cropTopPct)}%, width=${String.format(Locale.ROOT, "%.2f", cropDetails.cropWidthPct)}%, height=${String.format(Locale.ROOT, "%.2f", cropDetails.cropHeightPct)}%")
+                    }
+                )
+
+                val baseCrop = cropDetails.bitmap
+                File(debugDir, "crop_original.jpg").outputStream().use { out ->
+                    baseCrop.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+
+                val rot90 = rotateBitmap(baseCrop, 90f)
+                File(debugDir, "crop_rotated_90.jpg").outputStream().use { out ->
+                    rot90.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                if (rot90 != baseCrop) rot90.recycle()
+
+                val rot270 = rotateBitmap(baseCrop, 270f)
+                File(debugDir, "crop_rotated_270.jpg").outputStream().use { out ->
+                    rot270.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                if (rot270 != baseCrop) rot270.recycle()
+
+                val contrast = ImagePreprocessor.createContrastEnhancedVariant(baseCrop)
+                File(debugDir, "crop_contrast.jpg").outputStream().use { out ->
+                    contrast.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+
+                val contrast90 = rotateBitmap(contrast, 90f)
+                File(debugDir, "crop_contrast_90.jpg").outputStream().use { out ->
+                    contrast90.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                if (contrast90 != contrast) contrast90.recycle()
+                contrast.recycle()
+
+                val inverted = ImagePreprocessor.createInvertedVariant(baseCrop)
+                File(debugDir, "crop_inverted.jpg").outputStream().use { out ->
+                    inverted.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+
+                val inverted90 = rotateBitmap(inverted, 90f)
+                File(debugDir, "crop_inverted_90.jpg").outputStream().use { out ->
+                    inverted90.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                if (inverted90 != inverted) inverted90.recycle()
+                inverted.recycle()
+
+                baseCrop.recycle()
+            }
+
+            // 2. Raw OCR text of every pass, plus the text boxes with positions & 4. Timing
+            val passes = evalData?.passes ?: emptyList()
+            val ocrBoxesFile = File(debugDir, "raw_ocr_passes.txt")
+            ocrBoxesFile.bufferedWriter().use { writer ->
+                for (pass in passes) {
+                    writer.write("==================================================\n")
+                    writer.write("PASS: ${pass.passName} (${pass.durationMs}ms) [anchoredDate=${pass.hasAnchoredDate}]\n")
+                    writer.write("RAW TEXT:\n${pass.rawText}\n\n")
+                    writer.write("TEXT BOXES (${pass.extractedText.blocks.size} blocks):\n")
+                    for ((bIdx, block) in pass.extractedText.blocks.withIndex()) {
+                        val box = block.boundingBox
+                        val boxStr = if (box != null) "[${box.left}, ${box.top}, ${box.right}, ${box.bottom}]" else "[NO_BOX]"
+                        writer.write("  Block #$bIdx $boxStr: ${block.text}\n")
+                        for ((lIdx, line) in block.lines.withIndex()) {
+                            val lineBox = line.boundingBox
+                            val lineBoxStr = if (lineBox != null) "[${lineBox.left}, ${lineBox.top}, ${lineBox.right}, ${lineBox.bottom}]" else "[NO_BOX]"
+                            writer.write("    Line #$lIdx $lineBoxStr: ${line.text}\n")
+                        }
+                    }
+                    writer.write("\n")
+                }
+            }
+
+            // 3. Parser trace: every date candidate found and reason lost or rejected
+            val parserTraceFile = File(debugDir, "parser_trace.txt")
+            parserTraceFile.bufferedWriter().use { writer ->
+                writer.write("==================================================\n")
+                writer.write("PARSER RESOLUTION TRACE\n")
+                writer.write("==================================================\n")
+                writer.write("Extracted Date : ${parsedResult.selectedEventDate ?: "none"}\n")
+                writer.write("Confidence     : ${parsedResult.confidence}\n")
+                writer.write("Is Ambiguous   : ${parsedResult.isAmbiguous}\n")
+                writer.write("Explanation    : ${parsedResult.explanation}\n")
+                writer.write("Detected Title : ${parsedResult.title ?: "none"}\n")
+                writer.write("Fields         : ${parsedResult.fields}\n\n")
+
+                writer.write("CANDIDATES EVALUATED (${parsedResult.dateCandidates.size}):\n")
+                val winner = parsedResult.selectedEventDate
+                for ((cIdx, cand) in parsedResult.dateCandidates.withIndex()) {
+                    val isWinning = cand.eventDate == winner && winner != null
+                    val lostReason = when {
+                        isWinning -> "WINNER"
+                        cand.role.name.contains("MFG") || cand.eventType == app.memora.domain.model.EventType.OTHER -> "Historical/MFG anchor filtered out"
+                        parsedResult.isAmbiguous -> "Ambiguous competition"
+                        winner != null -> "Lower total score (${cand.scoreComponents.totalScore} vs winner)"
+                        else -> "Rejected"
+                    }
+                    writer.write("Candidate #$cIdx:\n")
+                    writer.write("  Raw token / Evidence : ${cand.evidenceText}\n")
+                    writer.write("  Normalized Date      : ${cand.eventDate}\n")
+                    writer.write("  Context / Anchor     : ${cand.context} (Role: ${cand.role.name})\n")
+                    writer.write("  Total Score          : ${cand.scoreComponents.totalScore}\n")
+                    writer.write("  Score Breakdown      : semanticBase=${cand.scoreComponents.semanticBaseScore}, temporal=${cand.scoreComponents.temporalPlausibilityScore}, precisionBonus=${cand.scoreComponents.precisionBonus}, domainBonus=${cand.scoreComponents.domainPrecedenceBonus}, penalty=${cand.scoreComponents.penalty}\n")
+                    writer.write("  Confidence           : ${cand.confidence}\n")
+                    writer.write("  Temporal Status      : ${cand.temporalStatus.name}\n")
+                    writer.write("  Decision / Reason    : $lostReason\n\n")
+                }
+            }
+
+            AppLog.i("EVALUATION", "Saved failure debug artifacts for $filename to ${debugDir.absolutePath}")
+        } catch (e: Exception) {
+            AppLog.e("EVALUATION", "Failed to save debug artifacts for $filename: ${e.message}", e)
+        }
     }
 
     /**
@@ -995,9 +1168,15 @@ object ExpiryEvaluationHarness {
      * Exports the generated evaluation CSV to the device's public Downloads directory
      * using MediaStore on Android 10+ (API 29+) with IS_PENDING atomic commit and readback verification.
      */
-    fun exportCsvToDownloads(context: Context, sourceCsvFile: File): Result<File> {
+    fun exportCsvToDownloads(context: Context, sourceCsvFile: File, customFilename: String? = null): Result<File> {
         return runCatching {
-            val downloadFilename = "memora_expiry_evaluation_${System.currentTimeMillis()}.csv"
+            val downloadFilename = customFilename ?: "memora_expiry_evaluation_${System.currentTimeMillis()}.csv"
+
+            runCatching {
+                val directFile = File(context.getExternalFilesDir(null), downloadFilename)
+                sourceCsvFile.copyTo(directFile, overwrite = true)
+                AppLog.i("EVALUATION", "Copied evaluation CSV to external files dir: ${directFile.absolutePath}")
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {
@@ -1038,6 +1217,234 @@ object ExpiryEvaluationHarness {
                 AppLog.i("EVALUATION", "Exported CSV to Downloads: ${destination.absolutePath}")
                 destination
             }
+        }
+    }
+
+    data class CropComparisonRow(
+        val filename: String,
+        val expectedDate: String,
+        val hasReticleMetadata: Boolean,
+        // Fixed crop metrics
+        val fixedExtracted: String,
+        val fixedCorrect: Boolean,
+        val fixedConfidence: Float,
+        val fixedBoxes: Int,
+        val fixedPassesRun: Int,
+        val fixedTotalMs: Long,
+        val fixedBudgetHit: Boolean,
+        // Reticle crop metrics
+        val reticleExtracted: String,
+        val reticleCorrect: Boolean,
+        val reticleConfidence: Float,
+        val reticleBoxes: Int,
+        val reticlePassesRun: Int,
+        val reticleTotalMs: Long,
+        val reticleBudgetHit: Boolean,
+        // Deltas
+        val deltaBoxes: Int,
+        val deltaMs: Long,
+    )
+
+    data class CropComparisonSummary(
+        val totalCount: Int,
+        val fixedCorrectCount: Int,
+        val fixedAccuracyPct: Double,
+        val fixedHighConfidenceWrongCount: Int,
+        val fixedAvgMs: Double,
+        val fixedP90Ms: Long,
+        val fixedWorstMs: Long,
+        val fixedAvgBoxes: Double,
+        val reticleCorrectCount: Int,
+        val reticleAccuracyPct: Double,
+        val reticleHighConfidenceWrongCount: Int,
+        val reticleAvgMs: Double,
+        val reticleP90Ms: Long,
+        val reticleWorstMs: Long,
+        val reticleAvgBoxes: Double,
+        val rows: List<CropComparisonRow>,
+        val formattedSummary: String,
+        val generatedCsvFile: File,
+    )
+
+    /**
+     * Harness mode comparing fixed 88%x82% central crop with reticle crop:
+     * measures boxes_detected, total_ms, extracted date, passes, budget_hit, and correctness against labels.
+     */
+    suspend fun runCropComparison(
+        context: Context,
+        capturesDir: File,
+        labelsMap: Map<String, String> = emptyMap(),
+        rapidOcrExtractor: RapidOcrExtractor? = null,
+    ): Result<CropComparisonSummary> = withContext(Dispatchers.IO) {
+        runCatching {
+            val imageExtensions = setOf("jpg", "jpeg", "png", "webp")
+            val imageFiles = capturesDir.walkTopDown()
+                .filter { it.isFile && it.extension.lowercase(Locale.US) in imageExtensions }
+                .sortedBy { it.name }
+                .toList()
+
+            if (imageFiles.isEmpty()) {
+                throw IllegalArgumentException("No images found in ${capturesDir.absolutePath}")
+            }
+
+            val resolvedLabels = labelsMap.ifEmpty {
+                val labelsFile = File(capturesDir, "labels_template.csv").takeIf { it.exists() }
+                    ?: File(getEvaluationDirectory(context), "labels_template.csv").takeIf { it.exists() }
+                if (labelsFile != null) {
+                    parseAndValidateLabelsCsv(labelsFile).associate { it.filename to it.expiryDate }
+                } else {
+                    emptyMap()
+                }
+            }
+
+            val extractor = rapidOcrExtractor ?: getOrCreateExtractor(context)
+            val deterministicExtractor = DeterministicMemoryExtractor(SystemClockProvider())
+
+            val rows = mutableListOf<CropComparisonRow>()
+
+            for (img in imageFiles) {
+                // Fixed 88%x82% crop
+                val fixedOcr = extractor.extractForEvaluation(img.absolutePath, runAllPasses = false, forceFallbackCrop = true).getOrNull()
+                val fixedBoxes = fixedOcr?.passes?.sumOf { it.boxesDetected } ?: 0
+                val fixedPassesRun = fixedOcr?.passes?.size ?: 0
+                val fixedMs = fixedOcr?.totalMs ?: 0L
+                val fixedBudgetHit = fixedOcr?.isBudgetExceeded ?: false
+                val fixedText = fixedOcr?.extractedText
+                val fixedParsed = if (fixedText != null && fixedText.blocks.isNotEmpty()) {
+                    deterministicExtractor.extractLocalResult(fixedText.blocks)
+                } else {
+                    deterministicExtractor.extractLocalResult(fixedText?.rawText ?: "")
+                }
+                val fixedDate = fixedParsed.selectedEventDate?.toString() ?: "none"
+                val fixedConfidence = fixedParsed.confidence
+
+                // Reticle mapped crop
+                val reticleOcr = extractor.extractForEvaluation(img.absolutePath, runAllPasses = false, forceFallbackCrop = false).getOrNull()
+                val reticleBoxes = reticleOcr?.passes?.sumOf { it.boxesDetected } ?: 0
+                val reticlePassesRun = reticleOcr?.passes?.size ?: 0
+                val reticleMs = reticleOcr?.totalMs ?: 0L
+                val reticleBudgetHit = reticleOcr?.isBudgetExceeded ?: false
+                val reticleText = reticleOcr?.extractedText
+                val reticleParsed = if (reticleText != null && reticleText.blocks.isNotEmpty()) {
+                    deterministicExtractor.extractLocalResult(reticleText.blocks)
+                } else {
+                    deterministicExtractor.extractLocalResult(reticleText?.rawText ?: "")
+                }
+                val reticleDate = reticleParsed.selectedEventDate?.toString() ?: "none"
+                val reticleConfidence = reticleParsed.confidence
+
+                val expected = resolvedLabels[img.name] ?: resolvedLabels[img.nameWithoutExtension] ?: "none"
+                val fixedCorrect = if (expected != "none") isDateMatch(expected, fixedDate) else (fixedDate != "none")
+                val reticleCorrect = if (expected != "none") isDateMatch(expected, reticleDate) else (reticleDate != "none")
+                val hasMeta = DebugCaptureSaver.findCompanionJsonFile(img) != null
+
+                val row = CropComparisonRow(
+                    filename = img.name,
+                    expectedDate = expected,
+                    hasReticleMetadata = hasMeta,
+                    fixedExtracted = fixedDate,
+                    fixedCorrect = fixedCorrect,
+                    fixedConfidence = fixedConfidence,
+                    fixedBoxes = fixedBoxes,
+                    fixedPassesRun = fixedPassesRun,
+                    fixedTotalMs = fixedMs,
+                    fixedBudgetHit = fixedBudgetHit,
+                    reticleExtracted = reticleDate,
+                    reticleCorrect = reticleCorrect,
+                    reticleConfidence = reticleConfidence,
+                    reticleBoxes = reticleBoxes,
+                    reticlePassesRun = reticlePassesRun,
+                    reticleTotalMs = reticleMs,
+                    reticleBudgetHit = reticleBudgetHit,
+                    deltaBoxes = reticleBoxes - fixedBoxes,
+                    deltaMs = reticleMs - fixedMs,
+                )
+                rows.add(row)
+            }
+
+            val total = rows.size
+            val fixedCorrectCount = rows.count { it.fixedCorrect }
+            val reticleCorrectCount = rows.count { it.reticleCorrect }
+            val fixedAcc = if (total > 0) (fixedCorrectCount.toDouble() / total) * 100.0 else 0.0
+            val reticleAcc = if (total > 0) (reticleCorrectCount.toDouble() / total) * 100.0 else 0.0
+
+            val fixedHighConfWrong = rows.count { it.fixedConfidence >= 0.75f && !it.fixedCorrect }
+            val reticleHighConfWrong = rows.count { it.reticleConfidence >= 0.75f && !it.reticleCorrect }
+
+            val fixedSortedMs = rows.map { it.fixedTotalMs }.sorted()
+            val reticleSortedMs = rows.map { it.reticleTotalMs }.sorted()
+
+            fun p90(list: List<Long>): Long = if (list.isEmpty()) 0L else list[((list.size - 1) * 0.90).toInt().coerceIn(0, list.size - 1)]
+
+            val fixedAvgMs = if (total > 0) rows.map { it.fixedTotalMs }.average() else 0.0
+            val reticleAvgMs = if (total > 0) rows.map { it.reticleTotalMs }.average() else 0.0
+            val fixedP90 = p90(fixedSortedMs)
+            val reticleP90 = p90(reticleSortedMs)
+            val fixedWorstMs = fixedSortedMs.lastOrNull() ?: 0L
+            val reticleWorstMs = reticleSortedMs.lastOrNull() ?: 0L
+
+            val fixedAvgBoxes = if (total > 0) rows.map { it.fixedBoxes }.average() else 0.0
+            val reticleAvgBoxes = if (total > 0) rows.map { it.reticleBoxes }.average() else 0.0
+
+            // Write CSV report
+            val csvFile = File(capturesDir, "crop_comparison_results_${System.currentTimeMillis()}.csv")
+            csvFile.bufferedWriter().use { writer ->
+                writer.write("filename,has_reticle_meta,expected,fixed_extracted,fixed_correct,fixed_confidence,fixed_boxes,fixed_passes,fixed_ms,fixed_budget_hit,reticle_extracted,reticle_correct,reticle_confidence,reticle_boxes,reticle_passes,reticle_ms,reticle_budget_hit\n")
+                for (r in rows) {
+                    writer.write("${r.filename},${r.hasReticleMetadata},${r.expectedDate},${r.fixedExtracted},${if (r.fixedCorrect) "Y" else "N"},${String.format(Locale.US, "%.2f", r.fixedConfidence)},${r.fixedBoxes},${r.fixedPassesRun},${r.fixedTotalMs},${if (r.fixedBudgetHit) "Y" else "N"},${r.reticleExtracted},${if (r.reticleCorrect) "Y" else "N"},${String.format(Locale.US, "%.2f", r.reticleConfidence)},${r.reticleBoxes},${r.reticlePassesRun},${r.reticleTotalMs},${if (r.reticleBudgetHit) "Y" else "N"}\n")
+                }
+            }
+
+            val sb = java.lang.StringBuilder()
+            sb.appendLine("=========================================================================================")
+            sb.appendLine("CROP COMPARISON: Fixed 88%x82% Crop vs Reticle Crop ($total images)")
+            sb.appendLine("=========================================================================================")
+            sb.appendLine(String.format(Locale.US, "Accuracy: Fixed = %d/%d (%.1f%%) | Reticle = %d/%d (%.1f%%)",
+                fixedCorrectCount, total, fixedAcc, reticleCorrectCount, total, reticleAcc))
+            sb.appendLine(String.format(Locale.US, "High-Confidence Wrong: Fixed = %d | Reticle = %d",
+                fixedHighConfWrong, reticleHighConfWrong))
+            sb.appendLine(String.format(Locale.US, "Latency (avg / p90 / worst): Fixed = %.0f / %d / %d ms | Reticle = %.0f / %d / %d ms",
+                fixedAvgMs, fixedP90, fixedWorstMs, reticleAvgMs, reticleP90, reticleWorstMs))
+            sb.appendLine(String.format(Locale.US, "Avg Boxes: Fixed = %.1f | Reticle = %.1f (delta = %+.1f)",
+                fixedAvgBoxes, reticleAvgBoxes, reticleAvgBoxes - fixedAvgBoxes))
+            sb.appendLine("--------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+            sb.appendLine(String.format(Locale.US, "%-30s | %-10s | %-10s | %-10s | %-4s | %-5s | %-4s | %-6s | %-6s | %-4s | %-5s | %-4s | %-6s",
+                "Filename", "Expected", "Fixed Date", "Ret Date", "F:OK", "F:Conf", "F:Bx", "F:ms", "R:OK", "R:Conf", "R:Bx", "R:ms", "BudHit"))
+            sb.appendLine("--------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+            for (r in rows) {
+                val line = String.format(Locale.US, "%-30s | %-10s | %-10s | %-10s | %-4s | %-5.2f | %-4d | %-6d | %-4s | %-5.2f | %-4d | %-6d | F:%s R:%s",
+                    r.filename.take(30), r.expectedDate.take(10), r.fixedExtracted.take(10), r.reticleExtracted.take(10),
+                    if (r.fixedCorrect) "Y" else "N", r.fixedConfidence, r.fixedBoxes, r.fixedTotalMs,
+                    if (r.reticleCorrect) "Y" else "N", r.reticleConfidence, r.reticleBoxes, r.reticleTotalMs,
+                    if (r.fixedBudgetHit) "Y" else "N", if (r.reticleBudgetHit) "Y" else "N")
+                sb.appendLine(line)
+                AppLog.i("CROP_COMPARISON", line)
+            }
+            sb.appendLine("====================================================================================================================================================================")
+
+            val formatted = sb.toString()
+            AppLog.i("CROP_COMPARISON_SUMMARY", formatted)
+
+            CropComparisonSummary(
+                totalCount = total,
+                fixedCorrectCount = fixedCorrectCount,
+                fixedAccuracyPct = fixedAcc,
+                fixedHighConfidenceWrongCount = fixedHighConfWrong,
+                fixedAvgMs = fixedAvgMs,
+                fixedP90Ms = fixedP90,
+                fixedWorstMs = fixedWorstMs,
+                fixedAvgBoxes = fixedAvgBoxes,
+                reticleCorrectCount = reticleCorrectCount,
+                reticleAccuracyPct = reticleAcc,
+                reticleHighConfidenceWrongCount = reticleHighConfWrong,
+                reticleAvgMs = reticleAvgMs,
+                reticleP90Ms = reticleP90,
+                reticleWorstMs = reticleWorstMs,
+                reticleAvgBoxes = reticleAvgBoxes,
+                rows = rows,
+                formattedSummary = formatted,
+                generatedCsvFile = csvFile,
+            )
         }
     }
 }

@@ -237,7 +237,7 @@ fun ExtractedMemoryBottomSheet(
                     .fillMaxWidth()
                     .testTag("capture_title_input"),
                 textStyle = MemoraTypography.body.copy(color = PrimaryNavy),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AccentIndigo,
                     unfocusedBorderColor = BorderLight,
@@ -327,11 +327,11 @@ fun ExtractedMemoryBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(SurfaceCool)
                     .border(
                         BorderStroke(1.dp, if (isPastDate) Color(0xFFE57373) else BorderLight),
-                        RoundedCornerShape(12.dp)
+                        RoundedCornerShape(16.dp)
                     )
                     .clickable { showCalendarPicker() }
                     .padding(16.dp)

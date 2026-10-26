@@ -201,7 +201,7 @@ fun HomeScreen(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = BorderLight,
                     focusedBorderColor = AccentIndigo,
@@ -328,7 +328,7 @@ fun HomeScreen(
                     contentColor = Color.White,
                     actionColor = Color(0xFFFFD54F),
                     actionContentColor = Color(0xFFFFD54F),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(20.dp),
                 )
             }
         )
@@ -392,7 +392,7 @@ fun HomeScreen(
                     }
                 },
                 containerColor = CardWhite,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 modifier = Modifier.testTag("delete_confirmation_dialog"),
             )
         }
@@ -448,7 +448,7 @@ fun SwipeableMemoryItem(
         enableDismissFromStartToEnd = !isCompleted,
         enableDismissFromEndToStart = true,
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .testTag("swipe_item_${item.memory.id}"),
         backgroundContent = {
             val direction = dismissState.dismissDirection

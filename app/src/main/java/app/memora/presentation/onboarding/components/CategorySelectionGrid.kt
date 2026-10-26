@@ -110,12 +110,12 @@ fun CategorySelectionGrid(
                 modifier = Modifier
                     .fillMaxWidth()
                     .defaultMinSize(minHeight = 48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(backgroundColor)
                     .border(
                         width = if (isSelected) 1.5.dp else 1.dp,
                         color = borderColor,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                     )
                     .testTag("category_chip_${option.id}")
                     .clickable(

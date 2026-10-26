@@ -4,10 +4,10 @@ import androidx.compose.ui.graphics.Color
 
 // Core Memora Design System Palette
 val PrimaryNavy = Color(0xFF1B1F2E)       // Deep navy — headings, key actions
-val SurfaceCool = Color(0xFFF7F8FA)        // Cool off-white — backgrounds
+val SurfaceCool = Color(0xFFF8F9FC)        // Cool off-white — backgrounds
 val CardWhite = Color(0xFFFFFFFF)          // White — elevated surfaces
 val AccentIndigo = Color(0xFF4F6BED)       // Indigo-blue — primary buttons, active states
-val BorderLight = Color(0xFFE4E6ED)        // Light grey — dividers, card borders
+val BorderLight = Color(0xFFECEEF4)        // Light grey — dividers, card borders
 
 // Status colors (Visually distinct, never generic)
 val StatusUpcoming = Color(0xFF6B7280)        // Grey
@@ -42,5 +42,5 @@ val Indigo50 = Color(0xFFEEF2FF)
 val DarkBackground = Color(0xFF0E1118)
 val DarkSurface = Color(0xFF151924)
 val DarkSurfaceElevated = Color(0xFF1C2232)
-val DarkOutline = Color(0xFF2E364A)
+val DarkOutline = Color(0xFF252D3F)
 

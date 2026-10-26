@@ -130,9 +130,9 @@ fun StatusBadge(
     val color = status.toColor()
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(50))
             .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -154,9 +154,9 @@ fun EventTypeChip(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .clip(RoundedCornerShape(50))
+            .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -205,7 +205,7 @@ fun PrimaryButton(
             .height(48.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale },
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = AccentIndigo,
             contentColor = Color.White,
@@ -247,7 +247,7 @@ fun SecondaryButton(
         modifier = modifier
             .height(48.dp),
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, AccentIndigo),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = CardWhite,
@@ -324,7 +324,7 @@ fun MemoraExtendedFab(
         },
         containerColor = AccentIndigo,
         contentColor = Color.White,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
     )
 }
 
@@ -352,12 +352,12 @@ fun MemoraMemoryCard(
             .fillMaxWidth()
             .testTag(testTag)
             .pressScaleAndHaptic(scaleDownTo = 0.985f, onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = CardWhite,
         ),
         border = BorderStroke(1.dp, BorderLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(
             modifier = Modifier
@@ -369,6 +369,7 @@ fun MemoraMemoryCard(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
+                    .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
                     .background(statusColor),
             )
 
@@ -468,15 +469,15 @@ fun MemoraEmptyState(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(CardWhite)
-                .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(16.dp)),
+                .clip(RoundedCornerShape(20.dp))
+                .background(AccentIndigo.copy(alpha = 0.08f))
+                .border(BorderStroke(1.dp, AccentIndigo.copy(alpha = 0.16f)), RoundedCornerShape(20.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = PrimaryNavy,
+                tint = AccentIndigo,
                 modifier = Modifier.size(28.dp),
             )
         }

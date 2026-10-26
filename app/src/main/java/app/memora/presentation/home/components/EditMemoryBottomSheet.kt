@@ -107,7 +107,7 @@ fun EditMemoryBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Title") },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = BorderLight,
                     focusedBorderColor = AccentIndigo,
@@ -135,7 +135,7 @@ fun EditMemoryBottomSheet(
                         tint = AccentIndigo
                     )
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledBorderColor = BorderLight,
                     disabledContainerColor = CardWhite,

@@ -153,7 +153,7 @@ fun LocalScanReviewBottomSheet(
 
             // Main Info Card
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceCool),
                 border = BorderStroke(1.dp, BorderLight),
                 modifier = Modifier

@@ -66,7 +66,7 @@ fun LossAversionCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("onboarding_loss_aversion_card"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
@@ -104,9 +104,9 @@ fun LossAversionCard(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(StatusOverdue.copy(alpha = 0.05f))
-                        .border(1.dp, StatusOverdue.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .border(1.dp, StatusOverdue.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
                         .padding(12.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -144,9 +144,9 @@ fun LossAversionCard(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(AccentIndigo.copy(alpha = 0.08f))
-                        .border(1.5.dp, AccentIndigo.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .border(1.5.dp, AccentIndigo.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
                         .padding(12.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {

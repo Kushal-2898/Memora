@@ -58,6 +58,54 @@ object ReticleToPhotoCoordinateMapper {
     /**
      * Maps the normalized reticle coordinates (in PreviewView space, 0..1)
      * to normalized coordinates in the upright/oriented photo (0..1).
+     *
+     * Computes the camera stream's effective aspect ratio dynamically from the photo dimensions,
+     * and applies rotation-aware transforms if the screen preview and the photo have opposite
+     * primary orientations (e.g. device held in landscape with rotation lock ON).
+     */
+    fun mapReticleToOrientedPhoto(
+        previewWidth: Int,
+        previewHeight: Int,
+        reticle: NormalizedRect,
+        photoWidth: Int,
+        photoHeight: Int,
+        rotationDegrees: Int = 0,
+        paddingPercent: Float = DEFAULT_PADDING_PERCENT,
+    ): NormalizedRect {
+        if (previewWidth <= 0 || previewHeight <= 0 || photoWidth <= 0 || photoHeight <= 0) {
+            return fallbackCentralCrop()
+        }
+
+        val photoAspect = photoWidth.toFloat() / photoHeight.toFloat()
+        val previewIsLandscape = previewWidth > previewHeight
+        val photoIsLandscape = photoWidth > photoHeight
+
+        return if (previewIsLandscape == photoIsLandscape) {
+            // Both preview and photo share the same primary orientation
+            mapPreviewToOrientedNormalized(
+                previewWidth = previewWidth,
+                previewHeight = previewHeight,
+                reticle = reticle,
+                cameraAspect = photoAspect,
+                paddingPercent = paddingPercent,
+            )
+        } else {
+            // Screen preview and photo have opposite orientations
+            val streamAspectInPreview = 1f / photoAspect
+            val mappedInStream = mapPreviewToOrientedNormalized(
+                previewWidth = previewWidth,
+                previewHeight = previewHeight,
+                reticle = reticle,
+                cameraAspect = streamAspectInPreview,
+                paddingPercent = paddingPercent,
+            )
+            mapRawSensorToOriented(mappedInStream, rotationDegrees)
+        }
+    }
+
+    /**
+     * Maps the normalized reticle coordinates (in PreviewView space, 0..1)
+     * to normalized coordinates in the upright/oriented photo (0..1).
      */
     fun mapPreviewToOrientedNormalized(
         previewWidth: Int,

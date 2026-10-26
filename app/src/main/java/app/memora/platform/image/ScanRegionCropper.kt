@@ -99,10 +99,13 @@ object ScanRegionCropper {
             val reticleMeta = if (forceFallbackCrop) null else (metadata ?: DebugCaptureSaver.readCompanionMetadata(file))
             val normCropRect = if (reticleMeta != null) {
                 runCatching {
-                    ReticleToPhotoCoordinateMapper.mapPreviewToOrientedNormalized(
+                    ReticleToPhotoCoordinateMapper.mapReticleToOrientedPhoto(
                         previewWidth = reticleMeta.previewWidth,
                         previewHeight = reticleMeta.previewHeight,
                         reticle = reticleMeta.normalizedRect,
+                        photoWidth = oriented.width,
+                        photoHeight = oriented.height,
+                        rotationDegrees = reticleMeta.rotationDegrees,
                         paddingPercent = ReticleToPhotoCoordinateMapper.DEFAULT_PADDING_PERCENT,
                     )
                 }.getOrElse {

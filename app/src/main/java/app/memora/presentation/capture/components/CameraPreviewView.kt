@@ -1,6 +1,8 @@
 package app.memora.presentation.capture.components
 
 import android.content.Context
+import android.os.Build
+import android.view.HapticFeedbackConstants
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -50,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -93,6 +96,7 @@ fun CameraPreviewView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
 
     var isCapturing by remember { mutableStateOf(false) }
@@ -213,6 +217,13 @@ fun CameraPreviewView(
     // Single unified block handles both initial detection and resume-from-pause scenarios.
     LaunchedEffect(isDocumentDetected, isCapturing, isAnalysisPaused) {
         if (isDocumentDetected && !isCapturing && !isAnalysisPaused && cameraManager != null && cameraBoundError == null) {
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                } else {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+            }
             delay(400) // Brief pause to let user see the green reticle lock on
             if (isDocumentDetected && !isCapturing && !isAnalysisPaused) {
                 performCapture()

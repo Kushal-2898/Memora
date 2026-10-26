@@ -74,7 +74,7 @@ class OnboardingFlowTest {
         composeTestRule.onNodeWithTag("onboarding_app_title").assertIsDisplayed()
 
         // Screen 1 copy and progress
-        composeTestRule.onNodeWithText("Remember what matters.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_progress_text").assertIsDisplayed()
         composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
 
@@ -128,7 +128,7 @@ class OnboardingFlowTest {
         }
 
         // Screen 1
-        composeTestRule.onNodeWithText("Remember what matters.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
         composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_loss_aversion_card").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_back").assertDoesNotExist()
@@ -137,7 +137,7 @@ class OnboardingFlowTest {
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Capture what you want to remember.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Choose what you track.").assertIsDisplayed()
         composeTestRule.onNodeWithText("2 of 4").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_category_grid").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_back").assertIsDisplayed()
@@ -147,7 +147,7 @@ class OnboardingFlowTest {
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Check the details.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Smart visual capture.").assertIsDisplayed()
         composeTestRule.onNodeWithText("3 of 4").assertIsDisplayed()
         composeTestRule.onNodeWithTag("scan_simulator_container").assertIsDisplayed()
 
@@ -244,14 +244,14 @@ class OnboardingFlowTest {
         // Move to Screen 2
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Capture what you want to remember.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Choose what you track.").assertIsDisplayed()
 
         // Tap Back
         composeTestRule.onNodeWithTag("onboarding_btn_back").performClick()
         composeTestRule.waitForIdle()
 
         // Should be back on Screen 1
-        composeTestRule.onNodeWithText("Remember what matters.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
         composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_back").assertDoesNotExist()
     }
@@ -285,7 +285,7 @@ class OnboardingFlowTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Check the details.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Smart visual capture.").assertIsDisplayed()
 
         // Tap skip
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()

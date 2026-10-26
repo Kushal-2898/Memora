@@ -135,12 +135,12 @@
     <string name="action_not_now">Not Now</string>
 
     <!-- Onboarding Tutorial -->
-    <string name="onboarding_title_1">Remember what matters.</string>
+    <string name="onboarding_title_1">Never lose track of what matters.</string>
     <string name="onboarding_desc_1">Keep track of important dates, expiry information, renewals, and things you need to follow up on.</string>
-    <string name="onboarding_title_2">Capture what you want to remember.</string>
-    <string name="onboarding_desc_2">Use the camera or choose an existing image to get started.</string>
-    <string name="onboarding_title_3">Check the details.</string>
-    <string name="onboarding_desc_3">Memora can extract information from your capture. Review the results and correct anything that needs changing before saving.</string>
+    <string name="onboarding_title_2">Choose what you track.</string>
+    <string name="onboarding_desc_2">Pick the categories you care about most. You can change these anytime in Settings.</string>
+    <string name="onboarding_title_3">Smart visual capture.</string>
+    <string name="onboarding_desc_3">Snap a photo or share an image. Memora automatically detects dates and details.</string>
     <string name="onboarding_title_4">Let Memora remind you.</string>
     <string name="onboarding_desc_4">Set reminders for important dates, then mark a memory complete when you have taken action.</string>
     <string name="onboarding_title_final">You\'re ready to begin.</string>

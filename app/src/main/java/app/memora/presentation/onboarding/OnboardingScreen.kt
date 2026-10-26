@@ -171,14 +171,14 @@ fun OnboardingScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Header: App Title
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(R.string.app_name),
                 style = MemoraTypography.title,
                 color = PrimaryNavy,
                 modifier = Modifier.testTag("onboarding_app_title"),
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Main Carousel Pager
             HorizontalPager(
@@ -196,9 +196,8 @@ fun OnboardingScreen(
                         .testTag(page.testTag)
                         .testTag(if (pageIndex == pages.size - 1) "onboarding_page_final" else page.testTag),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
                 ) {
-                    // Headings: Title & Subtitle
+                    // Headings: Title & Subtitle anchored cleanly at top
                     Text(
                         text = stringResource(page.titleRes),
                         style = MemoraTypography.headline,
@@ -218,30 +217,37 @@ fun OnboardingScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Rich Interactive Hero Elements per Screen
-                    when (pageIndex) {
-                        0 -> {
-                            // Screen 1: Loss Aversion / Before vs After Card
-                            LossAversionCard()
-                        }
-                        1 -> {
-                            // Screen 2: Interactive Category Selection Chips
-                            CategorySelectionGrid(
-                                selectedCategories = selectedCategories,
-                                onToggleCategory = toggleCategory,
-                            )
-                        }
-                        2 -> {
-                            // Screen 3: Interactive Mock Scan Simulator
-                            InteractiveScanSimulator()
-                        }
-                        3 -> {
-                            // Screen 4: Polished Micro-Animated Morning Alert
-                            NotificationPreviewCard()
-                        }
-                        4 -> {
-                            // Final Screen: Ready Summary & Verified Categories
-                            FinalReadySummaryCard(selectedCategories = selectedCategories)
+                    // Hero element centered in the flexible remaining space
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        when (pageIndex) {
+                            0 -> {
+                                // Screen 1: Loss Aversion / Before vs After Card
+                                LossAversionCard()
+                            }
+                            1 -> {
+                                // Screen 2: Interactive Category Selection Chips
+                                CategorySelectionGrid(
+                                    selectedCategories = selectedCategories,
+                                    onToggleCategory = toggleCategory,
+                                )
+                            }
+                            2 -> {
+                                // Screen 3: Interactive Mock Scan Simulator
+                                InteractiveScanSimulator()
+                            }
+                            3 -> {
+                                // Screen 4: Polished Micro-Animated Morning Alert
+                                NotificationPreviewCard()
+                            }
+                            4 -> {
+                                // Final Screen: Ready Summary & Verified Categories
+                                FinalReadySummaryCard(selectedCategories = selectedCategories)
+                            }
                         }
                     }
                 }

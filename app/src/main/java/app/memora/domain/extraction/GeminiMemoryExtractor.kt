@@ -281,7 +281,8 @@ CRITICAL EXTRACTION RULES:
                     confidence = confidence,
                     rawTextSnippet = null,
                     requiresConfirmation = true,
-                    alternatives = alternatives
+                    alternatives = alternatives,
+                    extractionSource = ExtractionSource.GEMINI_AI,
                 )
             )
         } catch (e: Exception) {

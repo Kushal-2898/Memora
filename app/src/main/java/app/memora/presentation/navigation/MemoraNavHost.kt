@@ -50,6 +50,8 @@ fun MemoraNavHost(
     appContainer: AppContainer,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    sharedImageUri: String? = null,
+    onSharedImageConsumed: () -> Unit = {},
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -57,6 +59,17 @@ fun MemoraNavHost(
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
         if (currentRoute != null) {
             app.memora.platform.logging.AppLog.recordScreen(currentRoute)
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(sharedImageUri) {
+        if (sharedImageUri != null && currentRoute != Screen.Scanner.route) {
+            navController.navigate(Screen.Scanner.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+            }
         }
     }
 
@@ -200,8 +213,16 @@ fun MemoraNavHost(
                         crashReporter = appContainer.crashReporter,
                         analyticsLogger = appContainer.analyticsLogger,
                         extractCapturedImageUseCase = appContainer.extractCapturedImageUseCase,
+                        canScanUseCase = appContainer.canScanUseCase,
                     )
                 )
+                androidx.compose.runtime.LaunchedEffect(sharedImageUri) {
+                    if (sharedImageUri != null) {
+                        scannerViewModel.onImageSelected(sharedImageUri, app.memora.domain.model.CaptureSource.GALLERY)
+                        onSharedImageConsumed()
+                    }
+                }
+
                 ScannerScreen(
                     viewModel = scannerViewModel,
                     cameraManager = appContainer.cameraXManager,

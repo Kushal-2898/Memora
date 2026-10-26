@@ -20,12 +20,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import app.memora.presentation.navigation.MemoraNavHost
 import app.memora.ui.theme.MemoraTheme
 
 class MainActivity : ComponentActivity() {
 
   private val showNotificationRationale = mutableStateOf(false)
+  private val pendingSharedImageUri = mutableStateOf<String?>(null)
+
+  private fun handleSendIntent(intent: Intent?) {
+    if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
+      val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+      if (uri != null) {
+        pendingSharedImageUri.value = uri.toString()
+        intent.removeExtra(Intent.EXTRA_STREAM)
+        intent.action = null
+      }
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleSendIntent(intent)
+  }
 
   private val notificationPermissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
@@ -38,6 +57,9 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+    if (savedInstanceState == null) {
+      handleSendIntent(intent)
+    }
     val appContainer = (application as MemoraApplication).container
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -53,6 +75,8 @@ class MainActivity : ComponentActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
           MemoraNavHost(
             appContainer = appContainer,
+            sharedImageUri = pendingSharedImageUri.value,
+            onSharedImageConsumed = { pendingSharedImageUri.value = null },
             modifier = Modifier.fillMaxSize(),
           )
 

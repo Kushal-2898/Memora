@@ -61,6 +61,8 @@ import app.memora.ui.theme.CardWhite
 import app.memora.ui.theme.MemoraTypography
 import app.memora.ui.theme.PrimaryNavy
 import app.memora.ui.theme.SurfaceCool
+import app.memora.ui.theme.StatusCompleted
+import app.memora.domain.extraction.ExtractionSource
 import app.memora.ui.theme.TextCaption
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -176,7 +178,29 @@ fun ExtractedMemoryBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Engine Attribution Badge
+            val isGemini = candidate?.extractionSource == ExtractionSource.GEMINI_AI
+            val badgeText = if (isGemini) "\u2728 Extracted by Gemini AI" else "\u26A1 Instant Local Scan"
+            val badgeColor = if (isGemini) AccentIndigo else StatusCompleted
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(badgeColor.copy(alpha = 0.10f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                    .testTag("engine_attribution_badge"),
+            ) {
+                Text(
+                    text = badgeText,
+                    style = MemoraTypography.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                    color = badgeColor,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             if (isAmbiguous) {
                 Text(

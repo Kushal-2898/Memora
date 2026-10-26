@@ -138,6 +138,12 @@ data class Stage3ExtractionResult(
     val alternatives: List<ExtractedDateCandidate> = emptyList(),
 )
 
+/** Identifies which processing engine extracted memory metadata. */
+enum class ExtractionSource {
+    LOCAL_OCR,
+    GEMINI_AI,
+}
+
 /** Extraction candidate holding structured metadata parsed from OCR text. */
 data class ExtractedMemoryCandidate(
     val suggestedTitle: String? = null,
@@ -147,6 +153,7 @@ data class ExtractedMemoryCandidate(
     val rawTextSnippet: String? = null,
     val requiresConfirmation: Boolean = true,
     val alternatives: List<ExtractedDateCandidate> = emptyList(),
+    val extractionSource: ExtractionSource = ExtractionSource.LOCAL_OCR,
 )
 
 interface MemoryExtractor {

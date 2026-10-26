@@ -53,6 +53,7 @@ object MemoraTypography {
         fontSize = 13.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.sp,
+        fontFeatureSettings = "tnum",
         color = TextCaption,
     )
 
@@ -62,6 +63,7 @@ object MemoraTypography {
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.3.sp,
+        fontFeatureSettings = "tnum",
     )
 }
 

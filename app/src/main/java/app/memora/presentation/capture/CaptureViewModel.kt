@@ -66,6 +66,7 @@ class CaptureViewModel(
     private val crashReporter: app.memora.domain.logging.CrashReporter,
     private val analyticsLogger: app.memora.domain.logging.AnalyticsLogger,
     private val extractCapturedImageUseCase: ExtractCapturedImageUseCase? = null,
+    private val canScanUseCase: app.memora.domain.usecase.CanScanUseCase? = null,
 ) : ViewModel() {
 
     // Backward-compatible secondary constructor for existing callers/tests
@@ -480,6 +481,31 @@ class CaptureViewModel(
 
         val job = viewModelScope.launch {
             try {
+                val canUseCloud = canScanUseCase?.invoke() ?: true
+                if (!canUseCloud) {
+                    AppLog.recordUserAction("Capture Screen", "Cloud quota reached: fallback to local scan")
+                    AppLog.endExtractionJob(extractionJobId, outcome = "FALLBACK_QUOTA")
+                    isGeminiRunning = false
+                    val fallbackCandidate = app.memora.domain.extraction.ExtractedMemoryCandidate(
+                        suggestedTitle = localResult.title,
+                        suggestedEventType = localResult.eventType ?: EventType.OTHER,
+                        suggestedEventDate = localResult.selectedEventDate,
+                        confidence = localResult.confidence,
+                        rawTextSnippet = ocrResult.rawText,
+                        requiresConfirmation = true,
+                        alternatives = localResult.dateCandidates,
+                        extractionSource = app.memora.domain.extraction.ExtractionSource.LOCAL_OCR,
+                    )
+                    val fallbackStage3 = app.memora.domain.extraction.Stage3ExtractionResult(
+                        candidate = fallbackCandidate,
+                        rawOcrText = ocrResult.rawText,
+                        normalizedText = ocrResult.rawText,
+                        disposition = app.memora.domain.extraction.ExtractionDisposition.HIGH_CONFIDENCE,
+                        alternatives = localResult.dateCandidates,
+                    )
+                    _uiState.value = CaptureUiState.ExtractionReady(image, fallbackStage3)
+                    return@launch
+                }
                 val refineResult = refineWithGeminiUseCase(image, ocrResult, localResult, scanId)
                 if (currentScanId != scanId) {
                     AppLog.endExtractionJob(extractionJobId, outcome = "CANCELLED")
@@ -785,6 +811,7 @@ class CaptureViewModel(
         private val crashReporter: app.memora.domain.logging.CrashReporter,
         private val analyticsLogger: app.memora.domain.logging.AnalyticsLogger,
         private val extractCapturedImageUseCase: ExtractCapturedImageUseCase? = null,
+        private val canScanUseCase: app.memora.domain.usecase.CanScanUseCase? = null,
     ) : ViewModelProvider.Factory {
 
         constructor(
@@ -834,6 +861,7 @@ class CaptureViewModel(
                     crashReporter = crashReporter,
                     analyticsLogger = analyticsLogger,
                     extractCapturedImageUseCase = extractCapturedImageUseCase,
+                    canScanUseCase = canScanUseCase,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

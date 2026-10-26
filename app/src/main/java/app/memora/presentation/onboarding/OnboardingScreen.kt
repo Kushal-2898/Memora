@@ -217,39 +217,34 @@ fun OnboardingScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Hero element centered in the flexible remaining space
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        when (pageIndex) {
-                            0 -> {
-                                // Screen 1: Loss Aversion / Before vs After Card
-                                LossAversionCard()
-                            }
-                            1 -> {
-                                // Screen 2: Interactive Category Selection Chips
-                                CategorySelectionGrid(
-                                    selectedCategories = selectedCategories,
-                                    onToggleCategory = toggleCategory,
-                                )
-                            }
-                            2 -> {
-                                // Screen 3: Interactive Mock Scan Simulator
-                                InteractiveScanSimulator()
-                            }
-                            3 -> {
-                                // Screen 4: Polished Micro-Animated Morning Alert
-                                NotificationPreviewCard()
-                            }
-                            4 -> {
-                                // Final Screen: Ready Summary & Verified Categories
-                                FinalReadySummaryCard(selectedCategories = selectedCategories)
-                            }
+                    // Hero element placed directly beneath the description lockup
+                    when (pageIndex) {
+                        0 -> {
+                            // Screen 1: Loss Aversion / Before vs After Card
+                            LossAversionCard()
+                        }
+                        1 -> {
+                            // Screen 2: Interactive Category Selection Chips
+                            CategorySelectionGrid(
+                                selectedCategories = selectedCategories,
+                                onToggleCategory = toggleCategory,
+                            )
+                        }
+                        2 -> {
+                            // Screen 3: Interactive Mock Scan Simulator
+                            InteractiveScanSimulator()
+                        }
+                        3 -> {
+                            // Screen 4: Polished Micro-Animated Morning Alert
+                            NotificationPreviewCard()
+                        }
+                        4 -> {
+                            // Final Screen: Ready Summary & Verified Categories
+                            FinalReadySummaryCard(selectedCategories = selectedCategories)
                         }
                     }
+
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
 

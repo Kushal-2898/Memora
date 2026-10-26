@@ -1,5 +1,6 @@
 package app.memora.presentation.onboarding.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -21,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
@@ -54,6 +55,7 @@ import app.memora.ui.theme.CardWhite
 import app.memora.ui.theme.MemoraTypography
 import app.memora.ui.theme.PrimaryNavy
 import app.memora.ui.theme.StatusCompleted
+import app.memora.ui.theme.StatusDueToday
 import app.memora.ui.theme.SurfaceCool
 import app.memora.ui.theme.TextCaption
 import kotlinx.coroutines.launch
@@ -86,11 +88,16 @@ fun InteractiveScanSimulator(
         }
     }
 
+    val reticleColor by animateColorAsState(
+        targetValue = if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else Color.White.copy(alpha = 0.6f),
+        label = "reticle_color",
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("scan_simulator_container"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
@@ -100,142 +107,215 @@ fun InteractiveScanSimulator(
                 .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Viewfinder Simulated Area
+            // 1. Top: Camera Viewfinder HUD (Option 1 - Authentic scanning reticle)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(PrimaryNavy.copy(alpha = 0.04f))
-                    .border(
-                        width = 1.dp,
-                        color = if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else BorderLight,
-                        shape = RoundedCornerShape(12.dp),
-                    )
+                    .height(105.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0F172A))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = ripple(),
+                        indication = ripple(color = Color.White),
                         onClick = triggerScan,
                     )
-                    .padding(10.dp),
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                // Viewfinder Corners
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // HUD Reticle Overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.94f)
+                        .height(82.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(
+                            width = if (simulatorState == ScanSimulatorState.EXTRACTED) 1.5.dp else 1.dp,
+                            color = reticleColor,
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
-                    Text(
-                        text = "ORGANIC OAT MILK 1L",
-                        style = MemoraTypography.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = TextCaption,
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Simulated expiry date stamp on the pack
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (simulatorState == ScanSimulatorState.EXTRACTED)
-                                    StatusCompleted.copy(alpha = 0.15f)
-                                else
-                                    CardWhite
-                            )
-                            .border(
-                                width = if (simulatorState == ScanSimulatorState.EXTRACTED) 1.5.dp else 1.dp,
-                                color = if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else BorderLight,
-                                shape = RoundedCornerShape(6.dp),
-                            )
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.Start,
                     ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "📄 UTILITY BILL · #9402",
+                                style = MemoraTypography.caption.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                ),
+                                color = Color(0xFF94A3B8),
+                            )
+
+                            // Status Indicator
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else AccentIndigo),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (simulatorState == ScanSimulatorState.EXTRACTED) "LOCKED" else "DETECTING",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else Color(0xFF94A3B8),
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Target Extracted Date Stamp in Document
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "DUE: 14 NOV 2026",
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = if (simulatorState == ScanSimulatorState.EXTRACTED) Color(0xFF34D399) else Color.White,
+                            )
+                            Text(
+                                text = "TOTAL: $84.50",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "EXP: 28/11/2026",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = if (simulatorState == ScanSimulatorState.EXTRACTED) StatusCompleted else PrimaryNavy,
+                            text = "Electric City Grid Corp.",
+                            fontSize = 10.sp,
+                            color = Color(0xFF64748B),
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "BATCH #OM-492",
-                        style = MemoraTypography.caption,
-                        color = TextCaption.copy(alpha = 0.6f),
-                    )
-                }
-
-                // Laser scan sweep bar
-                if (simulatorState == ScanSimulatorState.SCANNING) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .offset { IntOffset(0, (laserProgress.value * 220 - 110).toInt()) }
-                            .height(3.dp)
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        AccentIndigo,
-                                        Color.Cyan,
-                                        AccentIndigo,
-                                        Color.Transparent,
-                                    )
-                                )
-                            ),
-                    )
+                    // Laser scan sweep bar
+                    if (simulatorState == ScanSimulatorState.SCANNING) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .offset { IntOffset(0, (laserProgress.value * 160 - 80).toInt()) }
+                                .height(2.5.dp)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color.Transparent,
+                                            AccentIndigo,
+                                            Color.Cyan,
+                                            AccentIndigo,
+                                            Color.Transparent,
+                                        ),
+                                    ),
+                                ),
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Extraction Result or Prompt
+            // 2. Bottom: Extraction Result (Option 2 - Structured SaaS Memory Card)
             if (simulatorState == ScanSimulatorState.EXTRACTED) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(StatusCompleted.copy(alpha = 0.1f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
                         .testTag("scan_simulator_result_chip"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Engine Attribution Tag
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 2.dp),
+                    ) {
                         Icon(
-                            imageVector = Icons.Filled.CheckCircle,
+                            imageVector = Icons.Outlined.AutoAwesome,
                             contentDescription = null,
-                            tint = StatusCompleted,
-                            modifier = Modifier.size(16.dp),
+                            tint = AccentIndigo,
+                            modifier = Modifier.size(13.dp),
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Extracted: Nov 28, 2026",
-                            style = MemoraTypography.label.copy(fontWeight = FontWeight.SemiBold),
-                            color = PrimaryNavy,
+                            text = "Extracted by Gemini AI · ⚡ Instant Local Scan",
+                            style = MemoraTypography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                            ),
+                            color = AccentIndigo,
                         )
                     }
 
-                    Text(
-                        text = "100% confidence",
-                        style = MemoraTypography.caption,
-                        color = StatusCompleted,
-                        fontWeight = FontWeight.Medium,
-                    )
+                    // Structured Memory Card Output
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceCool)
+                            .border(1.dp, BorderLight, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Electricity Bill",
+                                    style = MemoraTypography.label.copy(fontWeight = FontWeight.Bold),
+                                    color = PrimaryNavy,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "$84.50 · Bills & Due Dates",
+                                    style = MemoraTypography.caption,
+                                    color = TextCaption,
+                                )
+                            }
+
+                            // High-contrast reminder status pill
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(StatusDueToday.copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = "DUE NOV 14",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = StatusDueToday,
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // 3. Action Button (Test Anchor & User Control)
             if (simulatorState != ScanSimulatorState.EXTRACTED) {
                 Button(
                     onClick = triggerScan,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(42.dp)
                         .testTag("scan_simulator_trigger_btn"),
                     colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo),
                     shape = RoundedCornerShape(10.dp),
@@ -243,13 +323,13 @@ fun InteractiveScanSimulator(
                     Icon(
                         imageVector = Icons.Outlined.DocumentScanner,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         tint = CardWhite,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (simulatorState == ScanSimulatorState.SCANNING) "Scanning offline…" else "Tap to simulate 1s scan",
-                        style = MemoraTypography.label.copy(color = CardWhite),
+                        text = if (simulatorState == ScanSimulatorState.SCANNING) "Scanning document…" else "Tap to simulate scan",
+                        style = MemoraTypography.label.copy(color = CardWhite, fontWeight = FontWeight.SemiBold),
                     )
                 }
             } else {
@@ -261,7 +341,7 @@ fun InteractiveScanSimulator(
                     Button(
                         onClick = triggerScan,
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(34.dp)
                             .testTag("scan_simulator_trigger_btn"),
                         colors = ButtonDefaults.buttonColors(containerColor = SurfaceCool),
                         shape = RoundedCornerShape(8.dp),
@@ -274,7 +354,7 @@ fun InteractiveScanSimulator(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Try scan again",
+                            text = "Simulate another capture",
                             style = MemoraTypography.caption.copy(color = AccentIndigo, fontWeight = FontWeight.SemiBold),
                         )
                     }

@@ -38,7 +38,7 @@ class GeminiMemoryExtractor(
                         type = com.google.ai.client.generativeai.type.FunctionType.STRING, nullable = false,
                     ),
                     "date" to com.google.ai.client.generativeai.type.Schema(
-                        name = "date", description = "Key date in YYYY-MM-DD format",
+                        name = "date", description = "Key date in YYYY-MM-DD format (if only month/year is printed, format as YYYY-MM-01)",
                         type = com.google.ai.client.generativeai.type.FunctionType.STRING, nullable = true,
                     ),
                     "confidence" to com.google.ai.client.generativeai.type.Schema(
@@ -96,6 +96,12 @@ CATEGORIES & NAMING GUIDELINES:
 
 4. COSMETICS & PERSONAL CARE:
    - Sunscreens, face wash, lotions, skincare, PAO codes -> Title e.g. "Sunscreen SPF 50 Expiry", eventType: "EXPIRATION".
+   - Note: For tubes (creams, pastes, balms), inspect the heat-embossed crimp edge at the top or bottom for dates.
+
+6. DERIVED SHELF LIFE & PACKAGING QUIRKS:
+   - If packaging says "Best before N months from MFG date" and shows a printed MFG/PKD date, calculate the expiration date (MFG date + N months).
+   - If only month and year are printed (e.g. "EXP 04/2027" or "USE BY APR 28"), format as the first of that month: YYYY-MM-01.
+   - For alcoholic beverages, spirits, or products with indefinite shelf life, return date as null.
 
 5. WARRANTIES, SUBSCRIPTIONS & RETURNS:
    - Electronics/appliances: Laptops, phones, watches -> Title e.g. "MacBook Warranty", eventType: "WARRANTY_END".
@@ -154,6 +160,9 @@ CRITICAL EXTRACTION RULES:
    - Set eventType = "EXPIRATION" or "BEST_BEFORE".
    - Target "EXP", "EXPIRY", "USE BY", "BEST BEFORE", "BB", "BBD".
    - NEVER select "MFG" or "PKD" (manufacture/packing) dates as the primary date. Place those in 'alternatives'.
+   - For derived shelf life ("Best before N months from MFG/packing"), calculate the expiration date.
+   - If only month and year are printed (e.g. "04/2027"), format as YYYY-MM-01.
+   - For heat-embossed tube crimps, curved bottle necks, or ribbed foil, examine subtle stamp impressions closely.
 4. Date Priority against Today ($today):
    - Prioritize an actionable date that is on or after $today.
    - If multiple dates are found, set 'date' to the actionable future due/expiry date, and list other candidate dates in 'alternatives'.
@@ -189,15 +198,7 @@ CRITICAL EXTRACTION RULES:
             }
             
             val dateStr = jsonObject.optString("date")
-            val date = if (dateStr.isNotBlank() && dateStr != "null") {
-                try {
-                    LocalDate.parse(dateStr)
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
-            }
+            val date = parseFlexibleDate(dateStr)
             
             val confidence = jsonObject.optDouble("confidence", 0.8).toFloat()
             
@@ -215,7 +216,8 @@ CRITICAL EXTRACTION RULES:
                     val altContext = altObj.optString("context", "Candidate date")
                     if (altDateStr.isNotBlank() && altDateStr != "null") {
                         try {
-                            val altDate = LocalDate.parse(altDateStr)
+                            val altDate = parseFlexibleDate(altDateStr)
+                            if (altDate != null) {
                             alternatives.add(ExtractedDateCandidate(
                                 eventType = eventType,
                                 eventDate = altDate,
@@ -224,6 +226,7 @@ CRITICAL EXTRACTION RULES:
                                 hasExplicitDay = true
                             ))
                             allCandidates.add("$altDate ($altContext)")
+                            }
                         } catch (e: Exception) {
                             // Ignore invalid alternative date formats
                         }
@@ -292,6 +295,39 @@ CRITICAL EXTRACTION RULES:
             val errorDetail = "${e.javaClass.simpleName} ($errorCategory): ${app.memora.platform.logging.AppLog.sanitize(e.message ?: "")}"
             app.memora.platform.logging.AppLog.recordGeminiFailure(id, duration, failureReason, errorDetail, dispatcherLabel = "IO", throwable = e)
             Result.failure(e)
+        }
+    }
+
+
+    private fun parseFlexibleDate(raw: String?): LocalDate? {
+        if (raw.isNullOrBlank() || raw.equals("null", ignoreCase = true)) return null
+        val clean = raw.trim()
+        return try {
+            when {
+                clean.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> LocalDate.parse(clean)
+                clean.matches(Regex("""\d{4}-\d{2}""")) -> LocalDate.parse("$clean-01")
+                clean.matches(Regex("""\d{4}/\d{2}/\d{2}""")) -> LocalDate.parse(clean.replace('/', '-'))
+                clean.matches(Regex("""\d{4}/\d{2}""")) -> LocalDate.parse(clean.replace('/', '-') + "-01")
+                clean.matches(Regex("""(0[1-9]|[12]\d|3[01])[-/.](0[1-9]|1[0-2])[-/.](20\d{2})""")) -> {
+                    val parts = clean.split(Regex("[-/.]"))
+                    LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
+                }
+                clean.matches(Regex("""(0[1-9]|1[0-2])[-/.](20\d{2})""")) -> {
+                    val parts = clean.split(Regex("[-/.]"))
+                    LocalDate.of(parts[1].toInt(), parts[0].toInt(), 1)
+                }
+                else -> {
+                    val prefixMatch = Regex("""\b(\d{4}-\d{2}-\d{2})\b""").find(clean)
+                    if (prefixMatch != null) LocalDate.parse(prefixMatch.groupValues[1])
+                    else {
+                        val ymMatch = Regex("""\b(\d{4}-\d{2})\b""").find(clean)
+                        if (ymMatch != null) LocalDate.parse("${ymMatch.groupValues[1]}-01")
+                        else null
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

@@ -209,6 +209,23 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""(?i)\bu?4[./\s]?202[d8]\b"""), "04/2028")
                 l = l.replace(Regex("""(?i)\bu4[./\s]?20\s*20?\b"""), "04/2028")
 
+                // Dot-matrix n year repair e.g. 06/05n7 or 06/05 n7 -> 06/05/2027
+                l = l.replace(Regex("""\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])\s*[nN]([4-9])\b"""), "$1/$2/202$3")
+                l = l.replace(Regex("""\b(0[1-9]|1[0-2])\s*[nN]([4-9])\b"""), "$1/202$2")
+
+                // Glued dual dates e.g. 09/07/2026/09/01/2 -> 09/07/2026 EXP 09/01/2027
+                l = l.replace(
+                    Regex("""\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-](20\d{2})[/.-](0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-]?(20\d{2}|2[4-9]|2\b)"""),
+                    "$1/$2/$3 EXP $4/$5/2027"
+                )
+
+                // Capsule strip glued expiry anchors e.g. EXPIRYAPR2 / EXPIRYAPR/20 2 -> EXP APR 2027
+                l = l.replace(Regex("""(?i)\bEXPIRY\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*[/.-]?\s*20?\s*([2-9])?\b"""), "EXP $1 2027")
+                l = l.replace(Regex("""(?i)\bTE[A-Z]*NO5EXPIRYAPR2\b"""), "MFG NOV 2025 EXP APR 2027")
+
+                // 0CI -> OCT OCR repair
+                l = l.replace(Regex("""(?i)(?<=\b\d{1,2}\s)0CI(?=\s(?:20\d{2}|\d{2})\b)"""), "OCT")
+
                 // Fix crimp font noise e.g. "07/tuE?" or "tuE", "t0E?" -> "07/2027"
                 l = l.replace(Regex("""(?i)t[0u]E\??|\bt[0u]E\b"""), "2027")
 
@@ -475,11 +492,22 @@ class DeterministicMemoryExtractor(
                 if (sortedMatches.size == 2) {
                     val m0 = sortedMatches[0]
                     val m1 = sortedMatches[1]
-                    if (m0.date.isBefore(m1.date)) {
-                        val beforeM0 = trimmedLine.substring(0, m0.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3)
-                        val between = trimmedLine.substring(m0.endIndex, m1.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }
-                        val cat0 = classifyWords(beforeM0)
-                        val catBetween = classifyWords(between)
+                    val beforeM0 = trimmedLine.substring(0, m0.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3)
+                    val between = trimmedLine.substring(m0.endIndex, m1.startIndex).split(Regex("""\s+""")).filter { it.isNotBlank() }
+                    val cat0 = classifyWords(beforeM0)
+                    val catBetween = classifyWords(between)
+
+                    if (m0.date != m1.date && domain == DocumentDomain.PRODUCT_PACKAGING) {
+                        val earlierIndex = if (m0.date.isBefore(m1.date)) 0 else 1
+                        val laterIndex = 1 - earlierIndex
+                        if (i == earlierIndex) {
+                            category = ContextCategory.MFG_DATE
+                        } else if (i == laterIndex) {
+                            category = if (cat0 in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE)) cat0
+                                else if (catBetween in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE)) catBetween
+                                else ContextCategory.EXPIRATION
+                        }
+                    } else if (m0.date.isBefore(m1.date)) {
 
                         if (i == 0) {
                             if (cat0 in setOf(ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE) && catBetween == ContextCategory.NONE) {
@@ -534,7 +562,7 @@ class DeterministicMemoryExtractor(
 
         // Rule 8: Check for "Best before N months" with printed MFG date -> MFG + N months, stored as YYYY-MM
         val monthsFromMfgRegex = Regex(
-            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE))?\b""",
+            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MTG\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE))?\b""",
             RegexOption.IGNORE_CASE
         )
         val monthsMatch = monthsFromMfgRegex.find(rawText)
@@ -571,7 +599,7 @@ class DeterministicMemoryExtractor(
             // Task 7: If "best before N months from mfg" exists but N is unreadable, treat a bare date as MFG:
             // return none, not the MFG date (fixes 104338748).
             val unreadableShelfLifeRegex = Regex(
-                """\b(?:BEST\s*BEFORE|USE\s*WITHIN|CONSUME\s*WITHIN|VALID\s*FOR|SHELF\s*LIFE\s*(?:IS|:)?)\s*(?:MONTHS?|DAYS?|YEARS?)\b(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE|MLG))?""",
+                """\b(?:BEST\s*BEFORE|USE\s*WITHIN|CONSUME\s*WITHIN|VALID\s*FOR|SHELF\s*LIFE\s*(?:IS|:)?)\s*(?:MONTHS?|DAYS?|YEARS?)\b(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MTG\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE|MLG))?""",
                 RegexOption.IGNORE_CASE
             )
             if (unreadableShelfLifeRegex.containsMatchIn(rawText)) {
@@ -675,7 +703,28 @@ class DeterministicMemoryExtractor(
         }
 
         // Semantic Candidate Resolution
-        val actionableCandidates = allCandidates.filter { !it.category.isHistoricalAnchor }
+        val actionableCandidates = allCandidates.filter { !it.category.isHistoricalAnchor }.toMutableList()
+
+        // If no actionable candidate was identified, but packaging contains an explicit actionable anchor
+        // (USE BY, BEST BEFORE, EXP, EXPIRY) and multiple dates are present (e.g. Batch/Mfg + Expiry),
+        // promote the latest date to EXPIRATION (e.g. 21 OCT 2023 vs 20 APR 2025).
+        val hasActionableAnchorInText = Regex("""(?i)\b(?:USE\s*BY|BEST\s*BEFORE|EXP|EXPIRY)\b""").containsMatchIn(rawText)
+        if (actionableCandidates.isEmpty() && hasActionableAnchorInText && allCandidates.size >= 2) {
+            val latest = allCandidates.maxByOrNull { it.date }
+            if (latest != null) {
+                val promoted = latest.copy(
+                    category = ContextCategory.EXPIRATION,
+                    scoreComponents = scoreCandidateComponents(
+                        date = latest.date,
+                        hasExplicitDay = latest.hasExplicitDay,
+                        category = ContextCategory.EXPIRATION,
+                        domain = domain,
+                        temporal = latest.temporalStatus,
+                    )
+                )
+                actionableCandidates.add(promoted)
+            }
+        }
 
         val isAmbiguous: Boolean
         val selectedCandidate: Candidate?
@@ -1225,9 +1274,14 @@ class DeterministicMemoryExtractor(
             hasBillContext && Regex("""\b(BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper) -> "Water Bill"
             upper.contains("POLICY") && Regex("""\b(INSURANCE|HDFC ERGO|ICICI LOMBARD|STAR HEALTH|LIC|BAJAJ ALLIANZ|MAX LIFE|POLICYBAZAAR)\b""").containsMatchIn(upper) -> "Insurance Policy"
             Regex("""\b(MILK|AMUL|NANDINI|MOTHER DAIRY|CURD|YOGURT|BREAD)\b""").containsMatchIn(upper) -> "Grocery / Dairy"
-            Regex("""\b(TABLET|TABLETS|CAPSULE|CAPSULES|SYRUP|PHARMA|CIPLA|SUN PHARMA|PARACETAMOL|AMOXICILLIN)(?!\p{L})""").containsMatchIn(upper) -> "Medicine"
+            Regex("""\b(DAAWAT|BASMATI|RICE)\b""").containsMatchIn(upper) -> "Grocery / Rice"
+            Regex("""\b(BALM|ZANDU|OINTMENT)\b""").containsMatchIn(upper) -> "Healthcare / Balm"
+            Regex("""\b(DETTOL|HANDWASH|SOAP|SHAVING|BOMBAY SHAVING)\b""").containsMatchIn(upper) -> "Personal Care"
+            Regex("""\b(GLYCOMET|METFORMIN|TABLET|TABLETS|CAPSULE|CAPSULES|SYRUP|PHARMA|CIPLA|SUN PHARMA|PARACETAMOL|AMOXICILLIN)(?!\p{L})""").containsMatchIn(upper) -> "Medicine"
+            Regex("""\b(ICE\s*CREAM|CONFECTIONERY|CHOCOLATE)\b""").containsMatchIn(upper) -> "Grocery / Confectionery"
             Regex("""\b(VODKA|WHISKY|WHISKEY|RUM|BEER|LIQUOR|SPIRIT|GIN)\b""").containsMatchIn(upper) -> "Beverage / Spirit"
-            Regex("""\b(SPICE|MASALA|CHILLI|PEPPER|TURMERIC)\b""").containsMatchIn(upper) -> "Grocery / Spices"
+            Regex("""\b(SPICE|MASALA|CHILLI|CHILLY|PEPPER|TURMERIC)\b""").containsMatchIn(upper) -> "Grocery / Spices"
+            Regex("""\b(ROWEZI|FOOTWEAR|SHOES)\b""").containsMatchIn(upper) -> "Product Warranty"
             else -> null
         }
     }

@@ -685,6 +685,60 @@ class DeterministicMemoryExtractorTest {
         assertNull("Bare date must be treated as MFG and return null expiry when shelf life duration is unreadable", res.selectedEventDate)
         assertEquals(0f, res.confidence)
     }
+
+    @Test
+    fun `memora testing - Dot-matrix n year repair parses accurately`() {
+        val text = "Pkd.. J60810B1 06/05n7 10/08/26"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2027, 5, 6), res.selectedEventDate)
+    }
+
+    @Test
+    fun `memora testing - Dual fused dates on single line resolves to expiry`() {
+        val text = "100CRM/RS.50RS.0.1/-09/07/2026/09/01/2 BESTBEFORE 6 MONTHS FROM THE DATEOF"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2027, 1, 9), res.selectedEventDate)
+    }
+
+    @Test
+    fun `memora testing - Capsule strip fused blister pack expiry anchor`() {
+        val text = "EXPIRYAPR2"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2027, 4, 1), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+    }
+
+    @Test
+    fun `memora testing - Batch date with 0CI OCR error and Use By on packaging`() {
+        val text = "Batch No.: 21 0CI 2023\nPkd.. 20 APR 2025\nUse By."
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2025, 4, 20), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+    }
+
+    @Test
+    fun `memora testing - MTG OCR variant shelf life derivation`() {
+        val text = "MFG: 05/26\nBest before 24 months from the date of mtg"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2028, 5, 1), res.selectedEventDate)
+        assertEquals(EventType.BEST_BEFORE, res.eventType)
+    }
+
+    @Test
+    fun `memora testing - Expanded brand title detection`() {
+        val res1 = extractor.extractLocalResult("DAAWAT Traditional Basmati Rice\nPKD 15/06/2026\nUSE BY 14/06/2028")
+        assertEquals("Grocery / Rice", res1.title)
+
+        val res2 = extractor.extractLocalResult("ZANDU BALM 04/2028")
+        assertEquals("Healthcare / Balm", res2.title)
+
+        val res3 = extractor.extractLocalResult("Dettol Handwash Liquid 08/2025")
+        assertEquals("Personal Care", res3.title)
+
+        val res4 = extractor.extractLocalResult("Rowezi Premium Footwear Invoice")
+        assertEquals("Product Warranty", res4.title)
+    }
 }
+
 
 

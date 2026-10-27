@@ -21,7 +21,9 @@ object ImagePreprocessor {
     enum class VariantType {
         ORIGINAL,
         CONTRAST_ENHANCED,
-        INVERTED
+        INVERTED,
+        DOT_MATRIX,
+        GLARE_SEPARATED
     }
 
     /**
@@ -77,6 +79,70 @@ object ImagePreprocessor {
         invertMatrix.preConcat(grayMatrix)
 
         paint.colorFilter = ColorMatrixColorFilter(invertMatrix)
+        canvas.drawBitmap(source, 0f, 0f, paint)
+
+        return output
+    }
+
+    /**
+     * Creates a dot-matrix stroke-connected variant of [source].
+     * Blends adjacent micro-dots into continuous character strokes via bilinear down-sampling/up-sampling
+     * and high-contrast thresholding.
+     * Caller is responsible for recycling the returned bitmap when finished.
+     */
+    fun createDotMatrixConnectedVariant(source: Bitmap): Bitmap {
+        val scale = 0.7f
+        val scaledWidth = (source.width * scale).toInt().coerceAtLeast(1)
+        val scaledHeight = (source.height * scale).toInt().coerceAtLeast(1)
+        val downscaled = Bitmap.createScaledBitmap(source, scaledWidth, scaledHeight, true)
+
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+        val contrast = 2.2f
+        val translate = (-0.5f * contrast + 0.5f) * 255f
+        val contrastMatrix = ColorMatrix(
+            floatArrayOf(
+                contrast, 0f, 0f, 0f, translate,
+                0f, contrast, 0f, 0f, translate,
+                0f, 0f, contrast, 0f, translate,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        val grayMatrix = ColorMatrix().apply { setSaturation(0f) }
+        contrastMatrix.preConcat(grayMatrix)
+        paint.colorFilter = ColorMatrixColorFilter(contrastMatrix)
+
+        canvas.drawBitmap(downscaled, null, android.graphics.Rect(0, 0, source.width, source.height), paint)
+        if (downscaled != source) {
+            downscaled.recycle()
+        }
+
+        return output
+    }
+
+    /**
+     * Creates a channel/glare-separated variant of [source].
+     * Isolates high-SNR luminance (green channel) and normalizes local contrast to make faint white ink
+     * and debossed text legible on dark or reflective surfaces.
+     * Caller is responsible for recycling the returned bitmap when finished.
+     */
+    fun createGlareSeparatedVariant(source: Bitmap): Bitmap {
+        val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint()
+
+        // Green-dominant high-contrast luminance matrix with specular glare suppression
+        val glareMatrix = ColorMatrix(
+            floatArrayOf(
+                0.1f, 1.6f, 0.1f, 0f, -30f,
+                0.1f, 1.6f, 0.1f, 0f, -30f,
+                0.1f, 1.6f, 0.1f, 0f, -30f,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        paint.colorFilter = ColorMatrixColorFilter(glareMatrix)
         canvas.drawBitmap(source, 0f, 0f, paint)
 
         return output

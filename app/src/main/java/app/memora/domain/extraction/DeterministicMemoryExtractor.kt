@@ -213,15 +213,33 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])\s*[nN]([4-9])\b"""), "$1/$2/202$3")
                 l = l.replace(Regex("""\b(0[1-9]|1[0-2])\s*[nN]([4-9])\b"""), "$1/202$2")
 
-                // Glued dual dates e.g. 09/07/2026/09/01/2 -> 09/07/2026 EXP 09/01/2027
-                l = l.replace(
-                    Regex("""\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-](20\d{2})[/.-](0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-]?(20\d{2}|2[4-9]|2\b)"""),
-                    "$1/$2/$3 EXP $4/$5/2027"
-                )
+                // Generalized glued dual dates e.g. 09/07/2026/09/01/2 -> 09/07/2026 EXP 09/01/2027
+                l = Regex("""\b(0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-](20\d{2}|\d{2})[/.-](0[1-9]|[12]\d|3[01])[/.-](0[1-9]|1[0-2])[/.-]?(20\d{2}|2[4-9]|\d\b)""").replace(l) { mr ->
+                    val y1Raw = mr.groupValues[3]
+                    val y1 = if (y1Raw.length == 2) "20$y1Raw" else y1Raw
+                    val y2Raw = mr.groupValues[6]
+                    val y2 = when {
+                        y2Raw.length == 4 -> y2Raw
+                        y2Raw.length == 2 -> "20$y2Raw"
+                        y2Raw == "2" -> "2027" // edge-truncated '202'
+                        y2Raw.isNotEmpty() -> "202$y2Raw"
+                        else -> "2027"
+                    }
+                    "${mr.groupValues[1]}/${mr.groupValues[2]}/$y1 EXP ${mr.groupValues[4]}/${mr.groupValues[5]}/$y2"
+                }
 
-                // Capsule strip glued expiry anchors e.g. EXPIRYAPR2 / EXPIRYAPR/20 2 -> EXP APR 2027
-                l = l.replace(Regex("""(?i)\bEXPIRY\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*[/.-]?\s*20?\s*([2-9])?\b"""), "EXP $1 2027")
-                l = l.replace(Regex("""(?i)\bTE[A-Z]*NO5EXPIRYAPR2\b"""), "MFG NOV 2025 EXP APR 2027")
+                // Capsule strip glued expiry anchors e.g. EXPIRYAPR2 / EXPIRYAPR/20 2 -> EXP APR 2027, EXPIRYMAY28 -> EXP MAY 2028
+                l = Regex("""(?i)\b(?:TE[A-Z0-9]*)?EXPIRY\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*[/.-]?\s*(?:20)?\s*(\d{1,2})?\b""").replace(l) { mr ->
+                    val month = mr.groupValues[1]
+                    val yRaw = mr.groupValues[2]
+                    val y = when {
+                        yRaw.length == 2 -> "20$yRaw"
+                        yRaw == "2" -> "2027" // edge-truncated '202'
+                        yRaw.isNotEmpty() -> "202$yRaw"
+                        else -> "2027"
+                    }
+                    "EXP $month $y"
+                }
 
                 // 0CI -> OCT OCR repair
                 l = l.replace(Regex("""(?i)(?<=\b\d{1,2}\s)0CI(?=\s(?:20\d{2}|\d{2})\b)"""), "OCT")

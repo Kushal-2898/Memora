@@ -122,6 +122,34 @@ class MlKitTextExtractor(
                                 v3Bitmap.recycle()
                             }
                         }
+
+                        if (!hasAnchoredDate(bestVisionText?.text.orEmpty())) {
+                            // Variant 4: Dot-Matrix stroke connection (fused micro-dots on textured pouches/wrappers)
+                            val v4Bitmap = ImagePreprocessor.createDotMatrixConnectedVariant(baseCroppedBitmap)
+                            try {
+                                val v4Text = processBitmap(recognizer, v4Bitmap, 0)
+                                if (hasAnchoredDate(v4Text.text) || v4Text.text.length > (bestVisionText?.text?.length ?: 0)) {
+                                    bestVisionText = v4Text
+                                    winningVariant = "RETICLE_DOT_MATRIX"
+                                }
+                            } finally {
+                                v4Bitmap.recycle()
+                            }
+                        }
+
+                        if (!hasAnchoredDate(bestVisionText?.text.orEmpty())) {
+                            // Variant 5: Channel/Glare separation (faint white ink/embossed text on dark surfaces)
+                            val v5Bitmap = ImagePreprocessor.createGlareSeparatedVariant(baseCroppedBitmap)
+                            try {
+                                val v5Text = processBitmap(recognizer, v5Bitmap, 0)
+                                if (hasAnchoredDate(v5Text.text) || v5Text.text.length > (bestVisionText?.text?.length ?: 0)) {
+                                    bestVisionText = v5Text
+                                    winningVariant = "RETICLE_GLARE_SEPARATED"
+                                }
+                            } finally {
+                                v5Bitmap.recycle()
+                            }
+                        }
                     }
                 } finally {
                     baseCroppedBitmap.recycle()

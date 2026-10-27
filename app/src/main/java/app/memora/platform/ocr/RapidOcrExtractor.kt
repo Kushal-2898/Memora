@@ -324,6 +324,42 @@ class RapidOcrExtractor(
                         }
                     }
 
+                    // Pass 3b: Dot-Matrix stroke connected (for disconnected micro-dots on pouches/wrappers)
+                    if (!stopEarly && bestScore < 10000 && (runAllPasses || !isBudgetExceeded())) {
+                        val tDotMatrix = System.currentTimeMillis()
+                        val vDotMatrixBmp = ImagePreprocessor.createDotMatrixConnectedVariant(baseCroppedBitmap)
+                        val vDotMatrixDet = try {
+                            detectBitmap(vDotMatrixBmp, config.maxSideLen)
+                        } finally {
+                            vDotMatrixBmp.recycle()
+                        }
+                        val vDotMatrixResult = vDotMatrixDet.extractedText
+                        recordPass("dot_matrix", System.currentTimeMillis() - tDotMatrix, vDotMatrixResult, 0L, vDotMatrixDet.dbNetTimeMs, vDotMatrixDet.recTimeMs, vDotMatrixDet.boxesDetected, vDotMatrixDet.boxesRecognized, vDotMatrixDet.msPerBox)
+                        updateBestCandidate("RETICLE_DOT_MATRIX", vDotMatrixResult)
+                        if (hasVerticalTextEvidence(vDotMatrixResult)) showsVerticalText = true
+                        if (!runAllPasses && bestScore >= 10000) {
+                            stopEarly = true
+                        }
+                    }
+
+                    // Pass 3c: Channel/Glare separated (for faint white ink/embossed text on dark/curved surfaces)
+                    if (!stopEarly && bestScore < 10000 && (runAllPasses || !isBudgetExceeded())) {
+                        val tGlare = System.currentTimeMillis()
+                        val vGlareBmp = ImagePreprocessor.createGlareSeparatedVariant(baseCroppedBitmap)
+                        val vGlareDet = try {
+                            detectBitmap(vGlareBmp, config.maxSideLen)
+                        } finally {
+                            vGlareBmp.recycle()
+                        }
+                        val vGlareResult = vGlareDet.extractedText
+                        recordPass("glare_separated", System.currentTimeMillis() - tGlare, vGlareResult, 0L, vGlareDet.dbNetTimeMs, vGlareDet.recTimeMs, vGlareDet.boxesDetected, vGlareDet.boxesRecognized, vGlareDet.msPerBox)
+                        updateBestCandidate("RETICLE_GLARE_SEPARATED", vGlareResult)
+                        if (hasVerticalTextEvidence(vGlareResult)) showsVerticalText = true
+                        if (!runAllPasses && bestScore >= 10000) {
+                            stopEarly = true
+                        }
+                    }
+
                     // Rotations: 90/270 rotations only if earlier passes show vertical text
                     val needRotations = showsVerticalText && bestScore < 10000 && consecutiveEmptyPasses < 2
                     if (!stopEarly && (needRotations || runAllPasses)) {

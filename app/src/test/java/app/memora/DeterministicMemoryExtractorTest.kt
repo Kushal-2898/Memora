@@ -725,6 +725,36 @@ class DeterministicMemoryExtractorTest {
     }
 
     @Test
+    fun `memora testing - Generalized dual fused dates resolve dynamic years`() {
+        val text2028 = "100CRM/RS.50-09/07/2026/09/01/2028 BESTBEFORE"
+        val res2028 = extractor.extractLocalResult(text2028)
+        assertEquals(LocalDate.of(2028, 1, 9), res2028.selectedEventDate)
+
+        val text2029 = "100CRM/RS.50-09/07/2026/09/01/29 BESTBEFORE"
+        val res2029 = extractor.extractLocalResult(text2029)
+        assertEquals(LocalDate.of(2029, 1, 9), res2029.selectedEventDate)
+    }
+
+    @Test
+    fun `memora testing - Generalized blister pack expiry anchors across months and years`() {
+        val textMay28 = "EXPIRYMAY28"
+        val resMay28 = extractor.extractLocalResult(textMay28)
+        assertEquals(LocalDate.of(2028, 5, 1), resMay28.selectedEventDate)
+
+        val textDec29 = "EXPIRYDEC29"
+        val resDec29 = extractor.extractLocalResult(textDec29)
+        assertEquals(LocalDate.of(2029, 12, 1), resDec29.selectedEventDate)
+    }
+
+    @Test
+    fun `memora testing - Dettol handwash contrast pass extracts 2028-07`() {
+        val text = "ECL25534\n08/2025\n1 0712028"
+        val res = extractor.extractLocalResult(text)
+        assertEquals(LocalDate.of(2028, 7, 1), res.selectedEventDate)
+        assertEquals(EventType.OTHER, res.eventType)
+    }
+
+    @Test
     fun `memora testing - Expanded brand title detection`() {
         val res1 = extractor.extractLocalResult("DAAWAT Traditional Basmati Rice\nPKD 15/06/2026\nUSE BY 14/06/2028")
         assertEquals("Grocery / Rice", res1.title)

@@ -6,26 +6,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Inter font family representation
+// Clean humanist sans-serif for UI clarity
 val InterFontFamily = FontFamily.SansSerif
 
 /**
- * Memora Visual Design System Typography Scale
+ * Memora Visual Design System Typography Scale (Soft Minimal / Bear Vibe)
  *
- * Single family: Inter
- * Title:    22sp  weight 600
- * Headline: 17sp  weight 600
- * Body:     15sp  weight 400
- * Caption:  13sp  weight 400  color #6B7280
- * Label:    12sp  weight 500  letter-spacing 0.3
+ * Screen Titles: Warm Editorial Serif
+ * Body / Details: Crisp Humanist Sans-Serif with Tabular Numerals
  */
 object MemoraTypography {
     val title = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        letterSpacing = (-0.2).sp,
         color = PrimaryNavy,
     )
 
@@ -69,11 +65,11 @@ object MemoraTypography {
 
 val Typography = Typography(
     displayMedium = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        letterSpacing = 0.sp,
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+        letterSpacing = (-0.2).sp,
         color = PrimaryNavy,
     ),
     titleLarge = MemoraTypography.title,
@@ -105,4 +101,3 @@ val Typography = Typography(
     labelMedium = MemoraTypography.label,
     labelSmall = MemoraTypography.label,
 )
-

@@ -2,45 +2,50 @@ package app.memora.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Core Memora Design System Palette
-val PrimaryNavy = Color(0xFF1B1F2E)       // Deep navy — headings, key actions
-val SurfaceCool = Color(0xFFF8F9FC)        // Cool off-white — backgrounds
-val CardWhite = Color(0xFFFFFFFF)          // White — elevated surfaces
-val AccentIndigo = Color(0xFF4F6BED)       // Indigo-blue — primary buttons, active states
-val BorderLight = Color(0xFFECEEF4)        // Light grey — dividers, card borders
+// Core Memora Design System Palette (Soft Minimal: Linen, Charcoal & Terracotta)
+val PrimaryNavy = Color(0xFF2C2723)       // Warm charcoal ink — headings, key actions
+val SurfaceCool = Color(0xFFFAF7F2)        // Warm linen paper cream — backgrounds
+val CardWhite = Color(0xFFFFFFFF)          // Crisp white — elevated paper surfaces
+val AccentIndigo = Color(0xFFE06D53)       // Warm terracotta — primary accent / active states
+val BorderLight = Color(0xFFEDE7DD)        // Warm oatmeal/linen hairline border
 
-// Status colors (Visually distinct, never generic)
-val StatusUpcoming = Color(0xFF6B7280)        // Grey
-val StatusReminderActive = Color(0xFF4F6BED)  // Indigo
-val StatusDueToday = Color(0xFFF59E0B)        // Amber
-val StatusOverdue = Color(0xFFEF4444)         // Red
-val StatusCompleted = Color(0xFF10B981)       // Emerald
+// Status colors (Earthy & natural tones)
+val StatusUpcoming = Color(0xFF7D736A)        // Warm taupe / umber
+val StatusReminderActive = Color(0xFFE06D53)  // Warm terracotta
+val StatusDueToday = Color(0xFFC48C2E)        // Golden ochre / amber honey
+val StatusOverdue = Color(0xFFD94E34)         // Burnt terracotta red
+val StatusCompleted = Color(0xFF4A7C59)       // Eucalyptus / sage green
 
 // Supporting typography tokens
-val TextCaption = Color(0xFF6B7280)
-val TextMuted = Color(0xFF9CA3AF)
+val TextCaption = Color(0xFF7D736A)           // Warm umber secondary
+val TextMuted = Color(0xFFA89F91)             // Soft sand
+
+// Soft paper tints
+val WarmParchment = Color(0xFFF0EBE1)
+val WarmTerracottaBg = Color(0xFFFCF0EC)
+val WarmOchreBg = Color(0xFFFAF3E6)
+val WarmSageBg = Color(0xFFEEF4F0)
 
 // Backwards compatibility tokens
 val Slate900 = PrimaryNavy
-val Slate800 = Color(0xFF242A3E)
-val Slate700 = Color(0xFF374151)
+val Slate800 = Color(0xFF38322D)
+val Slate700 = Color(0xFF4D4640)
 val Slate600 = TextCaption
-val Slate500 = Color(0xFF9CA3AF)
-val Slate400 = Color(0xFFCBD5E1)
-val Slate300 = Color(0xFFE2E8F0)
+val Slate500 = Color(0xFF91887F)
+val Slate400 = Color(0xFFA89F91)
+val Slate300 = Color(0xFFD9D2C7)
 val Slate200 = BorderLight
-val Slate100 = Color(0xFFF1F5F9)
+val Slate100 = Color(0xFFF4F0E8)
 val Slate50 = SurfaceCool
 
 val Indigo600 = AccentIndigo
 val Indigo500 = AccentIndigo
-val Indigo400 = Color(0xFF6882F0)
-val Indigo100 = Color(0xFFE0E7FF)
-val Indigo50 = Color(0xFFEEF2FF)
+val Indigo400 = Color(0xFFE8816A)
+val Indigo100 = Color(0xFFFCF0EC)
+val Indigo50 = Color(0xFFFDF7F4)
 
-// Dark Theme Variants
-val DarkBackground = Color(0xFF0E1118)
-val DarkSurface = Color(0xFF151924)
-val DarkSurfaceElevated = Color(0xFF1C2232)
-val DarkOutline = Color(0xFF252D3F)
-
+// Dark Theme Variants (Warm Espresso & Dark Linen)
+val DarkBackground = Color(0xFF141210)
+val DarkSurface = Color(0xFF1E1B18)
+val DarkSurfaceElevated = Color(0xFF282420)
+val DarkOutline = Color(0xFF38332D)

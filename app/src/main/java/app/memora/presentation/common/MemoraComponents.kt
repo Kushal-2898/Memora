@@ -24,7 +24,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -61,6 +65,10 @@ import app.memora.ui.theme.StatusOverdue
 import app.memora.ui.theme.StatusReminderActive
 import app.memora.ui.theme.StatusUpcoming
 import app.memora.ui.theme.TextCaption
+import app.memora.ui.theme.WarmOchreBg
+import app.memora.ui.theme.WarmParchment
+import app.memora.ui.theme.WarmSageBg
+import app.memora.ui.theme.WarmTerracottaBg
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -117,10 +125,8 @@ fun formatDaysRelative(eventDate: LocalDate, today: LocalDate = LocalDate.now())
 
 /**
  * Status Badge Component:
- * - Pill shape, 6dp radius
- * - Background: status color at 12% opacity
- * - Text: status color, 12sp, weight 500
- * - Sentence-case text (e.g. "Due today")
+ * - Pill shape, warm soft paper background tint
+ * - Sentence-case status label with tabular alignment
  */
 @Composable
 fun StatusBadge(
@@ -128,24 +134,30 @@ fun StatusBadge(
     modifier: Modifier = Modifier,
 ) {
     val color = status.toColor()
+    val bg = when (status) {
+        ReminderStatus.OVERDUE -> WarmTerracottaBg
+        ReminderStatus.DUE_TODAY -> WarmOchreBg
+        ReminderStatus.COMPLETED -> WarmSageBg
+        else -> WarmParchment
+    }
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .background(bg)
+            .padding(horizontal = 9.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = status.toDisplayName(),
             color = color,
-            style = MemoraTypography.label,
-            fontWeight = FontWeight.Medium,
+            style = MemoraTypography.label.copy(fontSize = 11.sp),
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
 /**
- * Small outlined Event Type chip.
+ * Small outlined Event Type chip with warm linen parchment background.
  */
 @Composable
 fun EventTypeChip(
@@ -155,8 +167,9 @@ fun EventTypeChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
+            .background(WarmParchment)
             .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            .padding(horizontal = 9.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -170,8 +183,7 @@ fun EventTypeChip(
 
 /**
  * Primary Button:
- * - Filled indigo (#4F6BED), white text, 12dp radius
- * - No gradients
+ * - Filled terracotta/charcoal, linen cream text, 16dp radius
  */
 @Composable
 fun PrimaryButton(
@@ -207,9 +219,9 @@ fun PrimaryButton(
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = AccentIndigo,
+            containerColor = PrimaryNavy,
             contentColor = Color.White,
-            disabledContainerColor = AccentIndigo.copy(alpha = 0.4f),
+            disabledContainerColor = PrimaryNavy.copy(alpha = 0.4f),
             disabledContentColor = Color.White.copy(alpha = 0.7f),
         ),
         elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),
@@ -232,7 +244,7 @@ fun PrimaryButton(
 
 /**
  * Secondary Button:
- * - White with indigo border (#4F6BED), 12dp radius
+ * - Crisp white with warm border, 16dp radius
  */
 @Composable
 fun SecondaryButton(
@@ -248,17 +260,17 @@ fun SecondaryButton(
             .height(48.dp),
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, AccentIndigo),
+        border = BorderStroke(1.dp, BorderLight),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = CardWhite,
-            contentColor = AccentIndigo,
+            contentColor = PrimaryNavy,
         ),
     ) {
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = AccentIndigo,
+                tint = PrimaryNavy,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -266,15 +278,14 @@ fun SecondaryButton(
         Text(
             text = text,
             style = MemoraTypography.body.copy(fontWeight = FontWeight.Medium),
-            color = AccentIndigo,
+            color = PrimaryNavy,
         )
     }
 }
 
 /**
  * Memora Extended FAB:
- * - Indigo background (#4F6BED), white icon
- * - Extended FAB with label "Scan"
+ * - Warm terracotta/charcoal background, white icon
  */
 @Composable
 fun MemoraExtendedFab(
@@ -329,11 +340,11 @@ fun MemoraExtendedFab(
 }
 
 /**
- * Standard Memora Card specification:
- * - border-radius 16dp
- * - 1dp border (#E4E6ED), no drop shadows
- * - 16dp internal padding
- * - Left accent bar (4dp wide) in status color
+ * Soft Minimal Memora Card specification (Bear / Craft Aesthetic):
+ * - border-radius 20dp
+ * - 1dp warm hairline border (#EDE7DD), soft paper elevation 2dp
+ * - 48dp tactile category glyph box with warm natural backgrounds
+ * - Sentence-case metadata and tabular date numerals
  */
 @Composable
 fun MemoraMemoryCard(
@@ -357,87 +368,126 @@ fun MemoraMemoryCard(
             containerColor = CardWhite,
         ),
         border = BorderStroke(1.dp, BorderLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Left status accent bar (4dp wide)
+            // Category Glyph Box (48x48dp, 14dp radius)
+            val glyphBg = when (status) {
+                ReminderStatus.OVERDUE -> WarmTerracottaBg
+                ReminderStatus.DUE_TODAY -> WarmOchreBg
+                ReminderStatus.COMPLETED -> WarmSageBg
+                else -> WarmParchment
+            }
+            val glyphBorder = when (status) {
+                ReminderStatus.OVERDUE -> Color(0xFFF5DACF)
+                ReminderStatus.DUE_TODAY -> Color(0xFFF3E5C9)
+                ReminderStatus.COMPLETED -> Color(0xFFD5E5DA)
+                else -> BorderLight
+            }
+            val glyphIcon = when (item.memory.eventType) {
+                EventType.DUE_DATE -> Icons.Outlined.Notifications
+                EventType.EXPIRATION -> Icons.Outlined.Schedule
+                EventType.BEST_BEFORE -> Icons.Outlined.Schedule
+                EventType.WARRANTY_END -> Icons.Outlined.CheckCircle
+                EventType.RETURN_DEADLINE -> Icons.Outlined.Schedule
+                EventType.SUBSCRIPTION_END -> Icons.Outlined.Info
+                EventType.OTHER -> Icons.Outlined.Info
+            }
+
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
-                    .background(statusColor),
-            )
-
-            // Content Container with 16dp internal padding
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(glyphBg)
+                    .border(BorderStroke(1.dp, glyphBorder), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
             ) {
-                // Top row: Title and Prominent Days Until/Since
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = item.memory.title,
-                        style = MemoraTypography.headline,
-                        color = PrimaryNavy,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                    )
+                Icon(
+                    imageVector = glyphIcon,
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
 
-                    // Days until/since event (right-aligned, prominent)
-                    Text(
-                        text = relativeDays,
-                        style = MemoraTypography.headline.copy(fontSize = 15.sp),
-                        color = statusColor,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Center details: Title, description, date & event type chip
+            Column(
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = item.memory.title,
+                    style = MemoraTypography.headline,
+                    color = PrimaryNavy,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
                 if (!item.memory.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = item.memory.description,
-                        style = MemoraTypography.body.copy(fontSize = 14.sp),
+                        style = MemoraTypography.body.copy(fontSize = 13.sp),
                         color = TextCaption,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Bottom row: Event type chip, Date text, Status badge
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        EventTypeChip(eventType = item.memory.eventType)
-                        Text(
-                            text = formattedDate,
-                            style = MemoraTypography.caption,
-                            color = TextCaption,
-                        )
-                    }
-
-                    StatusBadge(status = status)
+                    EventTypeChip(eventType = item.memory.eventType)
+                    Text(
+                        text = formattedDate,
+                        style = MemoraTypography.caption,
+                        color = TextCaption,
+                    )
                 }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Right side: Prominent relative days badge & status badge
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                val badgeBg = when (status) {
+                    ReminderStatus.OVERDUE -> WarmTerracottaBg
+                    ReminderStatus.DUE_TODAY -> WarmOchreBg
+                    ReminderStatus.COMPLETED -> WarmSageBg
+                    else -> WarmParchment
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(badgeBg)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = relativeDays,
+                        style = MemoraTypography.label.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                        ),
+                        color = statusColor,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                StatusBadge(status = status)
             }
         }
     }

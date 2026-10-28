@@ -69,20 +69,13 @@ class ReminderNotificationWorker(
             reminder?.let { container?.memoryRepository?.getMemory(it.memoryId) }
         }
 
-        val status: ReminderStatus = if (reminder != null && memory != null) {
+        val status: ReminderStatus = if (memory != null) {
             calculateStatusUseCase(memory, reminder)
-        } else if (reminder != null) {
+        } else {
             calculateStatusUseCase(
                 eventDate = eventDate,
                 reminderStartDate = reminder.reminderStartDate,
                 completedAt = reminder.completedAt,
-                timeZoneId = timeZoneId,
-            )
-        } else {
-            calculateStatusUseCase(
-                eventDate = eventDate,
-                reminderStartDate = eventDate,
-                completedAt = null,
                 timeZoneId = timeZoneId,
             )
         }

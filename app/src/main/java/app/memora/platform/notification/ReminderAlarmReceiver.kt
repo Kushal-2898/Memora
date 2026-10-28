@@ -98,19 +98,17 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             sendNotification(context, reminderId, message)
 
             // Daily recurrence (DEF-009): Reschedule next day's alarm while uncompleted
-            if (reminder.completedAt == null) {
-                val nextDate = today.plusDays(1)
-                val reminderTime = reminder.reminderTime ?: java.time.LocalTime.of(9, 0)
-                container.notificationScheduler.scheduleReminder(
-                    memoryId = memory.id,
-                    reminderId = reminder.id,
-                    title = memory.title,
-                    reminderStartDate = nextDate,
-                    eventDate = memory.eventDate,
-                    timeZoneId = memory.timeZoneId,
-                    reminderTime = reminderTime,
-                )
-            }
+            val nextDate = today.plusDays(1)
+            val reminderTime = reminder.reminderTime ?: java.time.LocalTime.of(9, 0)
+            container.notificationScheduler.scheduleReminder(
+                memoryId = memory.id,
+                reminderId = reminder.id,
+                title = memory.title,
+                reminderStartDate = nextDate,
+                eventDate = memory.eventDate,
+                timeZoneId = memory.timeZoneId,
+                reminderTime = reminderTime,
+            )
         } else {
             // Fallback when container is null (e.g. isolated test or minimal context)
             val zone = runCatching { ZoneId.of(timeZoneId) }.getOrElse { ZoneId.systemDefault() }

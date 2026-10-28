@@ -16,8 +16,8 @@ android {
     applicationId = "app.memora"
     minSdk = 24
     targetSdk = 36
-    versionCode = 17
-    versionName = "1.0.16"
+    versionCode = 18
+    versionName = "1.0.17"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -147,4 +147,5 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   // "ksp"(libs.moshi.kotlin.codegen)
 }
+
 

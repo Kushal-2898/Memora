@@ -507,8 +507,9 @@ class DeterministicMemoryExtractor(
                 val wordsAfter = textAfter.split(Regex("""\s+""")).filter { it.isNotBlank() }.take(3)
 
                 // If no preceding words on this line, check line immediately above (e.g. Mfg.Date \n 1/2023)
-                if (wordsBefore.isEmpty() && line.lineIndex != null && line.lineIndex > 0) {
-                    val prevLine = structuredLines.getOrNull(line.lineIndex - 1)?.text?.trim()
+                val lineIdx = line.lineIndex
+                if (wordsBefore.isEmpty() && lineIdx != null && lineIdx > 0) {
+                    val prevLine = structuredLines.getOrNull(lineIdx - 1)?.text?.trim()
                     if (!prevLine.isNullOrBlank()) {
                         wordsBefore.addAll(prevLine.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3))
                     }
@@ -712,9 +713,7 @@ class DeterministicMemoryExtractor(
 
         // Extract structured key-value fields
         val fields = mutableMapOf<String, String>()
-        if (detectedTitle != null) {
-            fields["Detected Title"] = detectedTitle
-        }
+        fields["Detected Title"] = detectedTitle
 
         // Batch / Lot extraction
         val batchRegex = Regex("""\b(?:BATCH(?:\s*NO)?|LOT(?:\s*NO)?|B\.?\s*NO)[.:\s#]+([A-Z0-9\-_/]+)\b""", RegexOption.IGNORE_CASE)

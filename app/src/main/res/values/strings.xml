@@ -88,7 +88,7 @@
     <string name="settings_privacy_title">100% On-Device Privacy &amp; Data</string>
     <string name="settings_privacy_desc">Memora processes all images, OCR text extraction, and reminders completely offline on your device. Zero personal data, images, or tracking metrics leave your phone.</string>
     <string name="settings_dpdp_title">DPDP Act (2023) Compliant</string>
-    <string name="settings_dpdp_desc">Certified Privacy-by-Design. Zero telemetry, on-device offline extraction, and full Data Principal rights guaranteed.</string>
+    <string name="settings_dpdp_desc">Privacy-by-Design. Zero telemetry, on-device offline extraction, and full Data Principal rights guaranteed.</string>
     <string name="settings_action_view_policy">View Privacy &amp; DPDP Policy</string>
     <string name="settings_erasure_title">Right to Erasure (DPDP Sec 12)</string>
     <string name="settings_erasure_desc">Permanently erase all stored memories, reminders, and cached photos from this device.</string>
@@ -101,7 +101,7 @@
     <string name="dialog_policy_close">Close</string>
     <string name="settings_section_about">About Memora</string>
     <string name="settings_version_title">Version</string>
-    <string name="settings_version_val">1.0.0 (Production Release)</string>
+    <string name="settings_version_val">v%1$s (Production)</string>
     <string name="settings_architecture_title">Architecture</string>
     <string name="settings_architecture_desc">Offline-First, M3 Jetpack Compose, Local RapidOCR &amp; Room</string>
 

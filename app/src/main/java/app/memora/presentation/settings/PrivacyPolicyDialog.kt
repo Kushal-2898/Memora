@@ -96,7 +96,7 @@ fun PrivacyPolicyDialog(
                             color = PrimaryNavy,
                         )
                         Text(
-                            text = "DPDP Act, 2023 Certified Local Architecture",
+                            text = "DPDP Act (2023) Compliant On-Device Architecture",
                             style = MemoraTypography.caption.copy(fontSize = 11.sp),
                             color = Color(0xFF0D9488),
                             fontWeight = FontWeight.SemiBold,
@@ -154,7 +154,7 @@ fun PrivacyPolicyDialog(
                     PolicySectionItem(
                         number = "7",
                         title = "Grievance Officer & Contact",
-                        content = "For questions, compliance inquiries, or Data Principal requests, contact our designated Grievance Officer at: privacy@memora.app.",
+                        content = "For questions, compliance inquiries, or Data Principal requests, contact our designated Grievance Officer at: meruvakushal@gmail.com.",
                     )
                 }
 

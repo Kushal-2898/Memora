@@ -185,7 +185,7 @@ fun SettingsScreen(
                 SettingsCard(
                     icon = Icons.Outlined.Info,
                     title = stringResource(R.string.settings_version_title),
-                    subtitle = stringResource(R.string.settings_version_val),
+                    subtitle = stringResource(R.string.settings_version_val, BuildConfig.VERSION_NAME),
                     testTag = "settings_version_card",
                 )
                 SettingsCard(

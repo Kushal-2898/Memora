@@ -289,12 +289,12 @@ private fun SettingsCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(testTag),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = CardWhite,
         ),
         border = BorderStroke(1.dp, BorderLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier
@@ -353,12 +353,12 @@ private fun SettingsActionCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(testTag),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = CardWhite,
         ),
         border = BorderStroke(1.dp, if (isDestructive) Color(0xFFFCA5A5) else BorderLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
             modifier = Modifier
@@ -439,7 +439,7 @@ private fun DiagnosticsSettingsSection() {
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_diagnostics_warning_card"),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color(0xFFFEF3C7),
             ),
@@ -474,7 +474,7 @@ private fun DiagnosticsSettingsSection() {
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_current_scan_card"),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = CardWhite),
             border = BorderStroke(1.dp, BorderLight),
         ) {
@@ -555,7 +555,7 @@ private fun DiagnosticsSettingsSection() {
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_all_logs_card"),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = CardWhite),
             border = BorderStroke(1.dp, BorderLight),
         ) {
@@ -669,7 +669,7 @@ private fun ExpiryEvaluationCard() {
         modifier = Modifier
             .fillMaxWidth()
             .testTag("settings_evaluation_card"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         border = BorderStroke(1.dp, BorderLight),
     ) {

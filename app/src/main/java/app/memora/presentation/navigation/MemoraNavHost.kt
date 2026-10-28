@@ -302,7 +302,18 @@ fun MemoraNavHost(
                         notificationScheduler = appContainer.notificationScheduler,
                     )
                 )
-                HistoryRoute(viewModel = historyViewModel)
+                HistoryRoute(
+                    viewModel = historyViewModel,
+                    onNavigateToHome = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
 
             composable(Screen.Settings.route) {

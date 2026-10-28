@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +35,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,7 +72,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.memora.R
+import app.memora.domain.model.EventType
 import app.memora.domain.model.MemoryWithReminders
+import app.memora.domain.model.ReminderStatus
 import app.memora.presentation.common.EventTypeChip
 import app.memora.presentation.common.MemoraEmptyState
 import app.memora.presentation.common.StatusBadge
@@ -81,14 +87,18 @@ import app.memora.ui.theme.MemoraTypography
 import app.memora.ui.theme.PrimaryNavy
 import app.memora.ui.theme.SurfaceCool
 import app.memora.ui.theme.TextCaption
+import app.memora.ui.theme.WarmOchreBg
+import app.memora.ui.theme.WarmParchment
+import app.memora.ui.theme.WarmSageBg
+import app.memora.ui.theme.WarmTerracottaBg
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
-
 
 @Composable
 fun HistoryRoute(
     viewModel: HistoryViewModel,
     modifier: Modifier = Modifier,
+    onNavigateToHome: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -99,6 +109,7 @@ fun HistoryRoute(
         onSearchQueryChange = viewModel::onSearchQueryChanged,
         onRestoreReminder = viewModel::restoreReminder,
         onUndoRestoreReminder = viewModel::completeReminder,
+        onNavigateToHome = onNavigateToHome,
         modifier = modifier,
     )
 }
@@ -110,6 +121,7 @@ fun HistoryScreen(
     onSearchQueryChange: (String) -> Unit = {},
     onRestoreReminder: (String) -> Unit = {},
     onUndoRestoreReminder: (String) -> Unit = {},
+    onNavigateToHome: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -182,7 +194,7 @@ fun HistoryScreen(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = BorderLight,
                     focusedBorderColor = AccentIndigo,
@@ -227,7 +239,11 @@ fun HistoryScreen(
                             message = if (searchQuery.isNotBlank()) "No matching history found for \"$searchQuery\"." else "No completed reminders in your history yet.",
                             actionLabel = if (searchQuery.isNotBlank()) "Clear search" else "Back to home",
                             onAction = { 
-                                if (searchQuery.isNotBlank()) onSearchQueryChange("")
+                                if (searchQuery.isNotBlank()) {
+                                    onSearchQueryChange("")
+                                } else {
+                                    onNavigateToHome()
+                                }
                             },
                             modifier = Modifier.fillMaxSize(),
                             testTag = "history_empty_state",
@@ -271,7 +287,7 @@ fun HistoryScreen(
                     contentColor = Color.White,
                     actionColor = Color(0xFFFFD54F),
                     actionContentColor = Color(0xFFFFD54F),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(20.dp),
                 )
             }
         )
@@ -305,7 +321,7 @@ fun SwipeableHistoryItem(
         enableDismissFromStartToEnd = true,
         enableDismissFromEndToStart = false,
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .testTag("history_swipe_item_${item.memory.id}"),
         backgroundContent = {
             val direction = dismissState.dismissDirection
@@ -361,7 +377,6 @@ fun HistoryMemoryCard(
 ) {
     val status = item.effectiveStatus
     val statusColor = status.toColor()
-    val relativeDays = formatDaysRelative(item.memory.eventDate)
     val formattedDate = item.memory.eventDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
 
     Card(
@@ -369,123 +384,127 @@ fun HistoryMemoryCard(
             .fillMaxWidth()
             .testTag(testTag)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = CardWhite,
         ),
         border = BorderStroke(1.dp, BorderLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Left status accent bar (4dp wide)
+            // Category Glyph Box (48x48dp, 14dp radius)
+            val glyphBg = when (status) {
+                ReminderStatus.OVERDUE -> WarmTerracottaBg
+                ReminderStatus.DUE_TODAY -> WarmOchreBg
+                ReminderStatus.COMPLETED -> WarmSageBg
+                else -> WarmParchment
+            }
+            val glyphBorder = when (status) {
+                ReminderStatus.OVERDUE -> Color(0xFFF5DACF)
+                ReminderStatus.DUE_TODAY -> Color(0xFFF3E5C9)
+                ReminderStatus.COMPLETED -> Color(0xFFD5E5DA)
+                else -> BorderLight
+            }
+            val glyphIcon = when (item.memory.eventType) {
+                EventType.DUE_DATE -> Icons.Outlined.Notifications
+                EventType.EXPIRATION -> Icons.Outlined.Schedule
+                EventType.BEST_BEFORE -> Icons.Outlined.Schedule
+                EventType.WARRANTY_END -> Icons.Outlined.CheckCircle
+                EventType.RETURN_DEADLINE -> Icons.Outlined.Schedule
+                EventType.SUBSCRIPTION_END -> Icons.Outlined.Info
+                EventType.OTHER -> Icons.Outlined.Info
+            }
+
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(statusColor),
-            )
-
-            // Content Container with 16dp internal padding
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(glyphBg)
+                    .border(BorderStroke(1.dp, glyphBorder), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
             ) {
-                // Top row: Title and Prominent Days Until/Since
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = item.memory.title,
-                        style = MemoraTypography.headline,
-                        color = PrimaryNavy,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                    )
+                Icon(
+                    imageVector = glyphIcon,
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
 
-                    Text(
-                        text = relativeDays,
-                        style = MemoraTypography.headline.copy(fontSize = 15.sp),
-                        color = statusColor,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Center details: Title, description, date & event type chip
+            Column(
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = item.memory.title,
+                    style = MemoraTypography.headline,
+                    color = PrimaryNavy,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
                 if (!item.memory.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = item.memory.description,
-                        style = MemoraTypography.body.copy(fontSize = 14.sp),
+                        style = MemoraTypography.body.copy(fontSize = 13.sp),
                         color = TextCaption,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Bottom row: Event type chip, Date text, Status badge, and Restore action button
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        EventTypeChip(eventType = item.memory.eventType)
-                        Text(
-                            text = formattedDate,
-                            style = MemoraTypography.caption,
-                            color = TextCaption,
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        StatusBadge(status = status)
-
-                        OutlinedButton(
-                            onClick = onRestore,
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, AccentIndigo),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = CardWhite,
-                                contentColor = AccentIndigo,
-                            ),
-                            modifier = Modifier
-                                .height(32.dp)
-                                .testTag("restore_button_${item.memory.id}"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = AccentIndigo,
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.action_restore),
-                                style = MemoraTypography.label.copy(fontSize = 12.sp),
-                                fontWeight = FontWeight.Medium,
-                                color = AccentIndigo,
-                            )
-                        }
-                    }
+                    EventTypeChip(eventType = item.memory.eventType)
+                    Text(
+                        text = formattedDate,
+                        style = MemoraTypography.caption,
+                        color = TextCaption,
+                    )
                 }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Right side: Restore button
+            OutlinedButton(
+                onClick = onRestore,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AccentIndigo),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = CardWhite,
+                    contentColor = AccentIndigo,
+                ),
+                modifier = Modifier
+                    .height(36.dp)
+                    .testTag("restore_button_${item.memory.id}"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.RestartAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = AccentIndigo,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.action_restore),
+                    style = MemoraTypography.label.copy(fontSize = 12.sp),
+                    fontWeight = FontWeight.SemiBold,
+                    color = AccentIndigo,
+                )
             }
         }
     }

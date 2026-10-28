@@ -75,9 +75,7 @@ fun EditMemoryBottomSheet(
             eventDate.year,
             eventDate.monthValue - 1,
             eventDate.dayOfMonth
-        ).apply {
-            datePicker.minDate = System.currentTimeMillis()
-        }
+        )
     }
 
     ModalBottomSheet(
@@ -107,7 +105,7 @@ fun EditMemoryBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Title") },
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = BorderLight,
                     focusedBorderColor = AccentIndigo,
@@ -135,7 +133,7 @@ fun EditMemoryBottomSheet(
                         tint = AccentIndigo
                     )
                 },
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     disabledBorderColor = BorderLight,
                     disabledContainerColor = CardWhite,
@@ -165,11 +163,11 @@ fun EditMemoryBottomSheet(
                     val isSelected = type == eventType
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(50))
                             .background(if (isSelected) AccentIndigo else SurfaceCool)
                             .border(
                                 androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) AccentIndigo else BorderLight),
-                                RoundedCornerShape(8.dp),
+                                RoundedCornerShape(50),
                             )
                             .clickable { eventType = type }
                             .padding(horizontal = 12.dp, vertical = 7.dp)

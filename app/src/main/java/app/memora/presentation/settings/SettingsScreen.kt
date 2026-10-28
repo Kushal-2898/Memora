@@ -198,10 +198,12 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Section 5: Diagnostics & Logs — Testing
-            SettingsSectionHeader(title = stringResource(R.string.settings_section_diagnostics))
-            Spacer(modifier = Modifier.height(12.dp))
-            DiagnosticsSettingsSection()
+            if (BuildConfig.MEMORA_DIAGNOSTICS) {
+                // Section 5: Diagnostics & Logs — Testing (Debug/Diagnostics only)
+                SettingsSectionHeader(title = stringResource(R.string.settings_section_diagnostics))
+                Spacer(modifier = Modifier.height(12.dp))
+                DiagnosticsSettingsSection()
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -895,3 +897,5 @@ private fun ExpiryEvaluationCard() {
         }
     }
 }
+
+

@@ -50,6 +50,8 @@ object RapidOcrTextNormalizer {
         text = text.replace(Regex("""\b203[Oo]\b"""), "2030")
         // 6. Replace 'O' or 'o' in 2-digit year after separator: e.g. "/2O\b" -> "/20"
         text = text.replace(Regex("""(?<=[/.-])2[Oo]\b"""), "20")
+        // 6b. Replace leading 'O' or 'o' before a digit and date separator: e.g. "O9/08/2024" -> "09/08/2024"
+        text = text.replace(Regex("""\b[Oo](?=[0-9][/.-])"""), "0")
 
         // 7. Replace 'l' or 'I' between digits: e.g. "15/l0/2026" -> "15/10/2026"
         text = text.replace(Regex("""(?<=\d)[lI](?=\d)"""), "1")

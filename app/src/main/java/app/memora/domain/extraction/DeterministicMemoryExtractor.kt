@@ -108,14 +108,14 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""(?i)\bMRR(?=\s*(?:\d{4}|\d{2})\b)"""), "MAR")
                 l = l.replace(Regex("""(?i)\b(\d{1,2})MRR\b"""), "$1 MAR")
 
-                // Decouple digits/dots glued directly to anchor keywords (e.g. 2026EXP.DEC2029 -> 2026 EXP. DEC 2029)
-                l = l.replace(Regex("""(?i)(?<=\d)[.]?(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\b"""), " $1")
+                // Decouple digits/dots glued directly to anchor keywords (e.g. 2026EXP.DEC2029 -> 2026 EXP. DEC 2029, TS2503NFGDT -> TS2503 NFGDT)
+                l = l.replace(Regex("""(?i)(?<=\d)[.]?(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|NFGDT|NFGD|NFG|MFG|MFGD|MFD|PKD)\b"""), " $1")
 
-                // Rule 2: Split glued anchor+date (e.g. EXPIRYAPR/2027, EXP.DEC2029, ExpiryDate, BestBefore, EXPIRYDATEDEC2028)
-                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\s*DATE(?=[A-Za-z0-9])"""), "$1 DATE ")
-                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|MFG|MFGD|MFD|PKD)\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?=[/.\s-]?\d|\b)"""), "$1 $2")
-                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|MFG|MFGD|MFD|PKD)\.([A-Za-z0-9])"""), "$1. $2")
-                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|MFG|MFGD|MFD|PKD)(?=\d{1,2}[/.-]|\d{4}\b)"""), "$1 ")
+                // Rule 2: Split glued anchor+date (e.g. EXPIRYAPR/2027, EXP.DEC2029, ExpiryDate, BestBefore, EXPIRYDATEDEC2028, NFGDT.DEC.2025)
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|NFGDT|NFGD|NFG|MFG|MFGD|MFD|PKD)\s*DATE(?=[A-Za-z0-9])"""), "$1 DATE ")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|USE\s*BY|BEST\s*BEFORE|NFGDT|NFGD|NFG|MFG|MFGD|MFD|PKD)\s*(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?=[/.\s-]?\d|\b)"""), "$1 $2")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|NFGDT|NFGD|NFG|MFG|MFGD|MFD|PKD)\.([A-Za-z0-9])"""), "$1. $2")
+                l = l.replace(Regex("""(?i)\b(EXPIRY|EXP|EXPD|NFGDT|NFGD|NFG|MFG|MFGD|MFD|PKD)(?=\d{1,2}[/.-]|\d{4}\b)"""), "$1 ")
                 l = l.replace(Regex("""(?i)\bExpiryDate\b"""), "Expiry Date")
                 l = l.replace(Regex("""(?i)\bBestBefore\b"""), "Best Before")
                 l = l.replace(Regex("""(?i)\b(BEST\s*BEFORE|USE\s*BY|USE\s*WITHIN|SHELF\s*LIFE)(?=(?:MONTHS?|DAYS?|YEARS?|\d))"""), "$1 ")
@@ -123,6 +123,10 @@ class DeterministicMemoryExtractor(
 
 
                 // Rule 2: Dual date glued like 15JUN26711MRR2745 -> 15 JUN 2026 / 11 MAR 2027 45
+                l = l.replace(
+                    Regex("""(?i)(\d{1,2}\s*(?:JAN|FEB|MAR|MRR|APR|MAY|JUN|JU|JUL|AUG|SEP|OCT|NOV|DEC)\s*\d{2}[./\s-]?\d{1,2})[148iIl]*(?:8R|AR|MR|RR)(\d{2})(\d*)"""),
+                    "$1 MAR 20$2 $3"
+                )
                 l = l.replace(
                     Regex("""(?i)(\d{1,2})\s*(JAN|FEB|MAR|MRR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2})[71/.-]?\s*(\d{1,2})\s*(JAN|FEB|MAR|MRR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s*(\d{2})(\d*)"""),
                     "$1 $2 20$3 / $4 $5 20$6 $7"
@@ -176,8 +180,10 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""(?i)\b4AR\s*25\s*[B8]?[.\s-]*28\b|\b4AR25[B8]?28\b"""), "MAR 2025 EXP MAR 2028")
                 l = l.replace(Regex("""(?i)\bbxp\.\s*date\b"""), "EXP. DATE")
                 l = l.replace(Regex("""(?i)\bbxp\b"""), "EXP")
+                l = l.replace(Regex("""(?i)\b(\d{1,2})\s*(?:1[iIl1]|4)[aA8][rR](\d{2})\b"""), "$1 MAR 20$2")
                 l = l.replace(Regex("""(?<=\b)0/(20\d{2}\b)"""), "10/$1")
                 l = l.replace(Regex("""(?<=\b)1/(20\d{2}\b)"""), "01/$1")
+                l = l.replace(Regex("""\b[Oo](?=[0-9][/.-])"""), "0")
 
                 // 5-digit dot-matrix DMMYY pattern e.g. "27526" -> "27/05/2026", "37526"" -> "27/05/2026"
                 l = l.replace(Regex("""(?<!\d)\b([0-2]\d|3[01])([1-9])(2[4-9]|3\d)["']?\b(?!\d)"""), "$1/0$2/20$3")
@@ -460,9 +466,24 @@ class DeterministicMemoryExtractor(
         structuredLines: List<StructuredLine>,
         rawText: String,
     ): LocalExtractionResult {
+        if (rawText.isBlank()) {
+            return LocalExtractionResult(
+                title = null,
+                eventType = null,
+                selectedEventDate = null,
+                dateType = null,
+                dateCandidates = emptyList(),
+                fields = emptyMap(),
+                confidence = 0f,
+                isAmbiguous = false,
+                explanation = "No text provided for extraction.",
+            )
+        }
+
         val today = clockProvider.now().atZone(zoneId).toLocalDate()
         val domain = detectDocumentDomain(rawText)
-        val detectedTitle = detectBillerTitle(rawText)
+        val productCategory = detectProductCategory(rawText)
+        val detectedTitle = extractProductTitle(rawText, productCategory)
 
         val allCandidates = mutableListOf<Candidate>()
 
@@ -482,8 +503,16 @@ class DeterministicMemoryExtractor(
                 val textBefore = trimmedLine.substring(prevEnd, current.startIndex)
                 val textAfter = trimmedLine.substring(current.endIndex, nextStart)
 
-                val wordsBefore = textBefore.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3)
+                val wordsBefore = textBefore.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3).toMutableList()
                 val wordsAfter = textAfter.split(Regex("""\s+""")).filter { it.isNotBlank() }.take(3)
+
+                // If no preceding words on this line, check line immediately above (e.g. Mfg.Date \n 1/2023)
+                if (wordsBefore.isEmpty() && line.lineIndex != null && line.lineIndex > 0) {
+                    val prevLine = structuredLines.getOrNull(line.lineIndex - 1)?.text?.trim()
+                    if (!prevLine.isNullOrBlank()) {
+                        wordsBefore.addAll(prevLine.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3))
+                    }
+                }
 
                 val categoryBefore = classifyWords(wordsBefore)
                 val categoryAfter = classifyWords(wordsAfter)
@@ -496,10 +525,25 @@ class DeterministicMemoryExtractor(
                 }
 
                 if (category == ContextCategory.NONE) {
-                    val isImportContext = Regex("""(?i)\b(?:IMPORT|IMPORTED|MONTH\s+OF\s+IMPORT|DATE\s+OF\s+IMPORT)\b""").containsMatchIn(textBefore)
+                    val isImportContext = Regex("""(?i)\b(?:IMPORT|IMPORTED|MONTH\s+OF\s+IMPORT|DATE\s+OF\s+IMPORT)\b""").containsMatchIn(trimmedLine) ||
+                        Regex("""(?i)\b(?:IMPORT|IMPORTED|MONTH\s+OF\s+IMPORT|DATE\s+OF\s+IMPORT)\b""").containsMatchIn(textBefore) ||
+                        Regex("""(?i)\b(?:IMPORT|IMPORTED|MONTH\s+OF\s+IMPORT|DATE\s+OF\s+IMPORT)\b""").containsMatchIn(textAfter)
                     if (isImportContext) {
                         category = ContextCategory.PURCHASE_DATE
                     }
+                }
+
+                if (category == ContextCategory.NONE) {
+                    val isMfgContext = Regex("""(?i)\b(?:MFG|MFGD|MFD|MTD|PKD|PACKED|PACKAGING|MANUFACTURE|MONTH\s+OF\s+MFG|DATE\s+OF\s+MFG|NFG|NFGDT)\b""").containsMatchIn(trimmedLine) ||
+                        Regex("""(?i)\b(?:MFG|MFGD|MFD|MTD|PKD|PACKED|PACKAGING|MANUFACTURE|MONTH\s+OF\s+MFG|DATE\s+OF\s+MFG|NFG|NFGDT)\b""").containsMatchIn(textBefore)
+                    if (isMfgContext) {
+                        category = ContextCategory.MFG_DATE
+                    }
+                }
+
+                // Beverage / Spirit exemption: unanchored dates are historical bottling dates
+                if (productCategory == ProductCategory.BEVERAGE_SPIRIT && (category == ContextCategory.NONE || category == ContextCategory.MFG_DATE)) {
+                    category = ContextCategory.MFG_DATE
                 }
 
 
@@ -580,13 +624,15 @@ class DeterministicMemoryExtractor(
 
         // Rule 8: Check for "Best before N months" with printed MFG date -> MFG + N months, stored as YYYY-MM
         val monthsFromMfgRegex = Regex(
-            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?(\d{1,2})\s*(?:MONTHS|MONTH)(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MTG\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE))?\b""",
+            """\b(?:(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE\s*(?:IS|:)?)\s+)?([1-9]|[1-3]\d)\s*(?:MONTHS|MONTH)(?:\s+(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MTG\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE))?\b""",
             RegexOption.IGNORE_CASE
         )
         val monthsMatch = monthsFromMfgRegex.find(rawText)
         if (monthsMatch != null) {
+            val hasShelfPrefix = Regex("""(?i)\b(?:BEST\s+BEFORE|USE\s+WITHIN|CONSUME\s+WITHIN|VALID\s+FOR|SHELF\s+LIFE)\b""").containsMatchIn(monthsMatch.value)
+            val hasMfgSuffix = Regex("""(?i)\b(?:FROM|FRON|OF)\s+(?:THE\s+)?(?:DATE\s+OF\s+)?(?:MFG\w*|MFD\w*|MTD\w*|MTG\w*|MIG\w*|MANUFACTUR\w*|PACKAGING|PKD\w*|PACKED|DATE)\b""").containsMatchIn(monthsMatch.value)
             val nMonths = monthsMatch.groupValues[1].toLongOrNull()
-            if (nMonths != null) {
+            if (nMonths != null && nMonths > 0 && (hasShelfPrefix || hasMfgSuffix)) {
                 val mfgCandidate = allCandidates.firstOrNull { it.category == ContextCategory.MFG_DATE }
                     ?: allCandidates.minByOrNull { it.date }
                 if (mfgCandidate != null) {
@@ -633,6 +679,31 @@ class DeterministicMemoryExtractor(
                                 domain = domain,
                                 temporal = c.temporalStatus,
                             )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Harmonize dual/multiple packaging dates:
+        // On consumer packaging, an earlier date is the manufacturing/packing date,
+        // and a later date is the expiration/best-before date.
+        // A later date cannot be a manufacturing date when an earlier date is present.
+        if (domain == DocumentDomain.PRODUCT_PACKAGING && productCategory != ProductCategory.BEVERAGE_SPIRIT && allCandidates.map { it.date }.distinct().size >= 2) {
+            val minDate = allCandidates.minOf { it.date }
+            val maxDate = allCandidates.maxOf { it.date }
+            if (minDate < maxDate) {
+                for (i in allCandidates.indices) {
+                    val c = allCandidates[i]
+                    if (c.date == minDate && (c.category == ContextCategory.NONE || c.category == ContextCategory.EXPIRATION || c.category == ContextCategory.BEST_BEFORE)) {
+                        allCandidates[i] = c.copy(
+                            category = ContextCategory.MFG_DATE,
+                            scoreComponents = scoreCandidateComponents(c.date, c.hasExplicitDay, ContextCategory.MFG_DATE, domain, c.temporalStatus)
+                        )
+                    } else if (c.date == maxDate && (c.category == ContextCategory.NONE || c.category.isHistoricalAnchor)) {
+                        allCandidates[i] = c.copy(
+                            category = ContextCategory.EXPIRATION,
+                            scoreComponents = scoreCandidateComponents(c.date, c.hasExplicitDay, ContextCategory.EXPIRATION, domain, c.temporalStatus)
                         )
                     }
                 }
@@ -720,16 +791,20 @@ class DeterministicMemoryExtractor(
             )
         }
 
+        val hasActionableAnchorInText = Regex("""(?i)\b(?:USE\s*BY|BEST\s*BEFORE|EXP|EXPIRY)\b""").containsMatchIn(rawText)
+
         // Semantic Candidate Resolution
-        val actionableCandidates = allCandidates.filter { !it.category.isHistoricalAnchor }.toMutableList()
+        val actionableCandidates = allCandidates.filter {
+            !it.category.isHistoricalAnchor && !(domain == DocumentDomain.PRODUCT_PACKAGING && it.category == ContextCategory.NONE && !hasActionableAnchorInText && it.date.isBefore(today))
+        }.toMutableList()
 
         // If no actionable candidate was identified, but packaging contains an explicit actionable anchor
-        // (USE BY, BEST BEFORE, EXP, EXPIRY) and multiple dates are present (e.g. Batch/Mfg + Expiry),
-        // promote the latest date to EXPIRATION (e.g. 21 OCT 2023 vs 20 APR 2025).
-        val hasActionableAnchorInText = Regex("""(?i)\b(?:USE\s*BY|BEST\s*BEFORE|EXP|EXPIRY)\b""").containsMatchIn(rawText)
+        // (USE BY, BEST BEFORE, EXP, EXPIRY) and multiple dates are present (e.g. Batch/Mfg + Expiry: 21 OCT 2023 vs 20 APR 2025),
+        // promote the latest date to ContextCategory.EXPIRATION.
         if (actionableCandidates.isEmpty() && hasActionableAnchorInText && allCandidates.size >= 2) {
+            val earliest = allCandidates.minByOrNull { it.date }
             val latest = allCandidates.maxByOrNull { it.date }
-            if (latest != null) {
+            if (earliest != null && latest != null && earliest.date.isBefore(latest.date)) {
                 val promoted = latest.copy(
                     category = ContextCategory.EXPIRATION,
                     scoreComponents = scoreCandidateComponents(
@@ -810,6 +885,11 @@ class DeterministicMemoryExtractor(
         }
 
         val eventType = selectedCandidate?.let { toEventType(it.category) }
+        val finalTitle = if (detectedTitle == "Other") {
+            extractProductTitle(rawText, productCategory, eventType)
+        } else {
+            detectedTitle
+        }
         val dateType = selectedCandidate?.category?.takeIf { it != ContextCategory.NONE }?.name
         val confidence = when {
             selectedCandidate == null -> 0f
@@ -820,7 +900,7 @@ class DeterministicMemoryExtractor(
 
 
         return LocalExtractionResult(
-            title = detectedTitle,
+            title = finalTitle,
             eventType = eventType,
             selectedEventDate = selectedCandidate?.date,
             dateType = dateType,
@@ -869,7 +949,8 @@ class DeterministicMemoryExtractor(
     private fun detectDocumentDomain(rawText: String): DocumentDomain {
         val upper = rawText.uppercase()
         val isUtilityInvoice = upper.contains("BILL") || upper.contains("INVOICE") || upper.contains("DUE") ||
-            upper.contains("PAYMENT") || upper.contains("AMOUNT") || upper.contains("CHARGES") ||
+            upper.contains("PAYMENT") || upper.contains("AMOUNT DUE") || upper.contains("AMOUNT PAYABLE") ||
+            upper.contains("TOTAL AMOUNT") || upper.contains("CHARGES") ||
             upper.contains("TARIFF") || upper.contains("SUBTOTAL") || upper.contains("STATEMENT") ||
             upper.contains("RECEIPT") || upper.contains("ELECTRICITY") || upper.contains("WATER") ||
             upper.contains("GAS") || upper.contains("CONSUMER") || upper.contains("METER")
@@ -881,12 +962,14 @@ class DeterministicMemoryExtractor(
             upper.contains("USE BY") || upper.contains("PKD") || upper.contains("BATCH") ||
             upper.contains("LOT NO") || upper.contains("NET WT") || upper.contains("INGREDIENTS") ||
             upper.contains("/ML") || upper.contains("MRP") || upper.contains("/-") ||
-            upper.contains("NET QTY") || upper.contains("NET QUANTITY")
+            upper.contains("NET QTY") || upper.contains("NET QUANTITY") ||
+            upper.contains("TAXES") || upper.contains("USP") || upper.contains("KED ON")
 
         val isSubscriptionReturn = upper.contains("SUBSCRIPTION") || upper.contains("MEMBERSHIP") ||
             upper.contains("RETURN WINDOW") || upper.contains("RETURN BY")
 
         return when {
+            isPackaging && !upper.contains("BILL") && !upper.contains("INVOICE") && !upper.contains("TARIFF") -> DocumentDomain.PRODUCT_PACKAGING
             isUtilityInvoice -> DocumentDomain.UTILITY_INVOICE
             isWarranty -> DocumentDomain.WARRANTY
             isPackaging -> DocumentDomain.PRODUCT_PACKAGING
@@ -1182,18 +1265,24 @@ class DeterministicMemoryExtractor(
         val tokensList = clean.split(" ").filter { it.isNotBlank() }
         val tokens = tokensList.toSet()
 
+        val mfgTokens = setOf(
+            "MFG", "MFGD", "MFD", "MTD", "MTG", "MIG", "MIGDATE", "MGDAVE",
+            "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING",
+            "PACKAGING", "PKD", "PACKED", "NFG", "NFGDT", "NFGD", "NFD", "FGDATE", "4FGDATE"
+        )
+
         // Rule 1: Anchor Scoping - scan tokens from nearest to furthest
         for (token in tokensList.reversed()) {
             if (token in setOf("EXP", "EXPIRY", "EXPIRES", "EXPIRE", "EXPIRATION", "EXPD")) return ContextCategory.EXPIRATION
             if (token in setOf("BEST", "BEFORE", "USE", "BB")) return ContextCategory.BEST_BEFORE
-            if (token in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED")) return ContextCategory.MFG_DATE
+            if (token in mfgTokens || token.startsWith("NFG") || token.startsWith("MFG") || token.startsWith("PKD") || token.startsWith("MFD") || token.startsWith("MTD")) return ContextCategory.MFG_DATE
             if (token in setOf("DUE")) return ContextCategory.DUE_DATE
             if (token in setOf("IMPORT", "IMPORTED", "PURCHASE", "PURCHASED", "ORDER", "ORDERED", "BOUGHT")) return ContextCategory.PURCHASE_DATE
         }
 
         // 1. Manufacturing / batch
-        val isMfg = tokens.any { it in setOf("MFG", "MFGD", "MFD", "MTD", "BATCH", "LOT", "PROD", "PRODUCTION", "MANUFACTURE", "MANUFACTURED", "MANUFACTURING", "PACKAGING", "PKD", "PACKED") } ||
-            clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE")
+        val isMfg = tokens.any { it in mfgTokens || it.startsWith("NFG") || it.startsWith("MFG") || it.startsWith("PKD") || it.startsWith("MFD") || it.startsWith("MTD") } ||
+            clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE") || clean.contains("NFG DATE")
         if (isMfg) return ContextCategory.MFG_DATE
 
         // 2. Purchase / Order / Import
@@ -1280,28 +1369,128 @@ class DeterministicMemoryExtractor(
         return prev[b.length]
     }
 
-    private fun detectBillerTitle(rawText: String): String? {
-        val upper = rawText.uppercase()
-        val hasBillContext = upper.contains("BILL") || upper.contains("INVOICE") || upper.contains("TARIFF") ||
-            upper.contains("CONSUMER") || upper.contains("METER") || upper.contains("DUE") || upper.contains("PAY")
+    enum class ProductCategory(val displayName: String) {
+        MEDICINE("Medicine"),
+        PERSONAL_CARE("Personal Care"),
+        GROCERY_FOOD("Grocery"),
+        BEVERAGE_SPIRIT("Beverage / Spirit"),
+        UTILITY_INVOICE("Bill / Invoice"),
+        PRODUCT_WARRANTY("Product Warranty"),
+        GENERAL("Other");
+    }
 
-        return when {
-            hasBillContext && Regex("""\b(ELECTRICITY|BESCOM|MSEB|MSEDCL|TNEB|UPPCL|BSES|TATA POWER|ADANI ELECTRICITY)\b""").containsMatchIn(upper) -> "Electricity Bill"
-            hasBillContext && Regex("""\b(AIRTEL|JIO|BSNL|VI|VODAFONE|ACT FIBERNET|BROADBAND|FIBER)\b""").containsMatchIn(upper) -> "Internet/Phone Bill"
-            hasBillContext && Regex("""\b(INDANE|PNG|LPG|BHARAT GAS|HP GAS|ADANI TOTAL GAS|ADANI GAS|MAHANAGAR GAS|MGL|IGL|TORRENT GAS|GAIL)\b""").containsMatchIn(upper) -> "Gas Bill"
-            hasBillContext && Regex("""\b(BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper) -> "Water Bill"
-            upper.contains("POLICY") && Regex("""\b(INSURANCE|HDFC ERGO|ICICI LOMBARD|STAR HEALTH|LIC|BAJAJ ALLIANZ|MAX LIFE|POLICYBAZAAR)\b""").containsMatchIn(upper) -> "Insurance Policy"
-            Regex("""\b(MILK|AMUL|NANDINI|MOTHER DAIRY|CURD|YOGURT|BREAD)\b""").containsMatchIn(upper) -> "Grocery / Dairy"
-            Regex("""\b(DAAWAT|BASMATI|RICE)\b""").containsMatchIn(upper) -> "Grocery / Rice"
-            Regex("""\b(BALM|ZANDU|OINTMENT)\b""").containsMatchIn(upper) -> "Healthcare / Balm"
-            Regex("""\b(DETTOL|HANDWASH|SOAP|SHAVING|BOMBAY SHAVING)\b""").containsMatchIn(upper) -> "Personal Care"
-            Regex("""\b(GLYCOMET|METFORMIN|TABLET|TABLETS|CAPSULE|CAPSULES|SYRUP|PHARMA|CIPLA|SUN PHARMA|PARACETAMOL|AMOXICILLIN)(?!\p{L})""").containsMatchIn(upper) -> "Medicine"
-            Regex("""\b(ICE\s*CREAM|CONFECTIONERY|CHOCOLATE)\b""").containsMatchIn(upper) -> "Grocery / Confectionery"
-            Regex("""\b(VODKA|WHISKY|WHISKEY|RUM|BEER|LIQUOR|SPIRIT|GIN)\b""").containsMatchIn(upper) -> "Beverage / Spirit"
-            Regex("""\b(SPICE|MASALA|CHILLI|CHILLY|PEPPER|TURMERIC)\b""").containsMatchIn(upper) -> "Grocery / Spices"
-            Regex("""\b(ROWEZI|FOOTWEAR|SHOES)\b""").containsMatchIn(upper) -> "Product Warranty"
-            else -> null
+    fun detectProductCategory(rawText: String): ProductCategory {
+        val upper = rawText.uppercase()
+        val hasBill = upper.contains("BILL") || upper.contains("INVOICE") || upper.contains("TARIFF") ||
+            upper.contains("CONSUMER") || upper.contains("METER") || upper.contains("DUE") || upper.contains("PAY")
+        if (hasBill && Regex("""\b(ELECTRICITY|BESCOM|MSEB|MSEDCL|TNEB|UPPCL|BSES|TATA POWER|ADANI ELECTRICITY|AIRTEL|JIO|BSNL|VI|VODAFONE|ACT FIBERNET|BROADBAND|FIBER|INDANE|PNG|LPG|BHARAT GAS|HP GAS|ADANI TOTAL GAS|ADANI GAS|MAHANAGAR GAS|MGL|IGL|TORRENT GAS|GAIL|BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper)) {
+            return ProductCategory.UTILITY_INVOICE
         }
+
+        val hasNutrition = Regex("""(?i)\b(kcal|Energy|Fat|Protein|Carbohydrate|Nutritional\s*Facts?|Nutrition\s*Information|Serving\s*Size)\b""").containsMatchIn(rawText)
+
+        val isBev = Regex("""(?i)\b\d{1,2}(?:\.\d+)?\s*%\s*(?:v/v|vol|alc)\b""").containsMatchIn(rawText) ||
+            Regex("""(?i)\b\d{1,3}\s*Proof\b""").containsMatchIn(rawText) ||
+            Regex("""(?i)\b(Vodka|Whisky|Whiskey|Rum|Gin|Beer|Wine|Distilled|Flavored\s*Vodka|Liquor|Liqueur|Spirit|Brewed|Alcoholic)\b""").containsMatchIn(rawText)
+        if (isBev) {
+            return ProductCategory.BEVERAGE_SPIRIT
+        }
+
+        val hasInci = Regex("""(?i)\b(Aqua|Glycerin|Polysorbate\s*\d*|Carbomer\s*\d*|Perfume|Colorant|Antibacterial|Activated\s*Charcoal|Paraben\s*Free|Sulphate\s*Free|Dimethicone|Cetyl\s*Alcohol)\b""").containsMatchIn(rawText)
+        val hasPcUse = Regex("""(?i)\b(skin|sun-ex|SPF\b|external\s*use|for\s*external\s*use\s*only|balm|handwash|face\s*wash|wash|shampoo|cleanser|moisturizer|sunscreen)\b""").containsMatchIn(rawText)
+        if (hasInci || hasPcUse) {
+            return ProductCategory.PERSONAL_CARE
+        }
+
+        val hasCulinary = Regex("""(?i)\b(Cooking\s*Instructions?|Recipe|Serve|Store\s*in\s*a\s*cool)\b""").containsMatchIn(rawText)
+        val hasFood = Regex("""(?i)\b(Ice\s*Cream|Rice|Basmati|Chilli|Chilly|Spices|Masala|Spring\s*rolls|Whole|Wheat|Flour|Salt|Sugar|Oil|Tea|Coffee|Snacks|Biscuits|Chocolate|Confectionery|Dairy|Milk|Curd|Yogurt|Paneer|Butter)\b""").containsMatchIn(rawText)
+        if (hasNutrition || hasCulinary || hasFood) {
+            return ProductCategory.GROCERY_FOOD
+        }
+
+        val hasDosage = Regex("""(?i)\b\d+(?:\.\d+)?\s*(?:mg|mcg|ml)\b""").containsMatchIn(rawText)
+        val hasPharmaStd = Regex("""(?i)\b(?:I\.?P\.?|B\.?P\.?|U\.?S\.?P\.?)\d*\b""").containsMatchIn(rawText)
+        val hasPharmaForm = Regex("""(?i)\b(Tablets?|Capsules?|Syrup|Ointment|Gel|Suspension|Drops)\b""").containsMatchIn(rawText)
+        val hasChemSalt = Regex("""(?i)\b\w*(?:Hydrochloride|Sodium|lukast|cetirizine|cillin|mycin|azole|mol|fenac|prazole|dipine|statin)\b""").containsMatchIn(rawText)
+        val hasMedPhrase = Regex("""(?i)\b(medicine|children|doctor|physician|dosage|directed\s+by\s+the\s+physician|for\s+therapeutic\s+use|keep\s+out\s+of\s+reach\s+of\s+children)\b""").containsMatchIn(rawText)
+
+        val medScore = (if (hasDosage) 1 else 0) + (if (hasPharmaStd) 2 else 0) + (if (hasPharmaForm) 2 else 0) + (if (hasChemSalt) 2 else 0) + (if (hasMedPhrase) 2 else 0)
+        if (medScore >= 2) {
+            return ProductCategory.MEDICINE
+        }
+
+        if (upper.contains("WARRANTY") || upper.contains("GUARANTEE") || upper.contains("FOOTWEAR") || upper.contains("SHOES")) {
+            return ProductCategory.PRODUCT_WARRANTY
+        }
+
+        return ProductCategory.GENERAL
+    }
+
+    private fun extractProductTitle(
+        rawText: String,
+        category: ProductCategory,
+        eventType: EventType? = null
+    ): String {
+        val upper = rawText.uppercase()
+
+        if (category == ProductCategory.UTILITY_INVOICE) {
+            return when {
+                Regex("""\b(ELECTRICITY|BESCOM|MSEB|MSEDCL|TNEB|UPPCL|BSES|TATA POWER|ADANI ELECTRICITY)\b""").containsMatchIn(upper) -> "Electricity Bill"
+                Regex("""\b(AIRTEL|JIO|BSNL|VI|VODAFONE|ACT FIBERNET|BROADBAND|FIBER)\b""").containsMatchIn(upper) -> "Internet/Phone Bill"
+                Regex("""\b(INDANE|PNG|LPG|BHARAT GAS|HP GAS|ADANI TOTAL GAS|ADANI GAS|MAHANAGAR GAS|MGL|IGL|TORRENT GAS|GAIL)\b""").containsMatchIn(upper) -> "Gas Bill"
+                Regex("""\b(BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper) -> "Water Bill"
+                upper.contains("POLICY") || Regex("""\b(INSURANCE|HDFC ERGO|ICICI LOMBARD|STAR HEALTH|LIC|BAJAJ ALLIANZ|MAX LIFE|POLICYBAZAAR)\b""").containsMatchIn(upper) -> "Insurance Policy"
+                else -> "Bill / Invoice"
+            }
+        }
+
+        var extractedBrand: String? = null
+        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }.take(15)
+        for (line in lines) {
+            val lu = line.uppercase()
+            if (Regex("""\b(?:MRP|RS\b|₹|INCL|TAXES|NET\s*QTY|NET\s*WT|NET\s*CONTENT|BATCH|B\.?NO|LOT\b|LIC\b|FSSAI|MFG|PKD|EXP|USE\s*BY|BEST\s*BEFORE|BARCODE)\b""").containsMatchIn(lu)) continue
+            if (Regex("""\b(?:ROAD|STREET|NAGAR|LTD|PVT|LIMITED|EMAIL|WWW\.|COM|CALL|TOLL|CARE|CUSTOMER|DISTRICT|STATE|FLOOR|HOUSE|IMPORT|EXPORT)\b""").containsMatchIn(lu)) continue
+            if (Regex("""\b(?:\d+\s*(?:MG|MCG|ML)|TABLETS?|CAPSULES?|SYRUP|OINTMENT|GEL|IP|BP|USP|PARACETAMOL|AMOXICILLIN|HANDWASH|BALM|RICE|BASMATI|FOOTWEAR|INVOICE|BILL)\b""").containsMatchIn(lu)) continue
+            if (Regex("""\b\d{6}\b""").containsMatchIn(line)) continue
+            if (line.count { it == ',' } >= 2 || lu.startsWith("INGREDIENTS")) continue
+            if (line.length < 3 || line.length > 35) continue
+
+            val cleaned = line.replace(Regex("""^[^A-Za-z0-9]+|[^A-Za-z0-9)]+$"""), "").trim()
+            val words = cleaned.split(Regex("""\s+""")).filter { it.isNotBlank() }
+            if (words.size in 1..4 && words.any { it.matches(Regex("""[A-Za-z]{3,}""")) }) {
+                if (!Regex("""(?i)\b(Cooking\s*Instructions?|Directions|Safety\s*Directions|Nutritional\s*Facts|Serving\s*Size|For\s*External\s*Use)\b""").matches(cleaned)) {
+                    extractedBrand = cleaned
+                    break
+                }
+            }
+        }
+
+        val detectedProductType: String? = when (category) {
+            ProductCategory.MEDICINE -> "Medicine"
+            ProductCategory.PERSONAL_CARE -> {
+                if (Regex("""(?i)\b(Balm)\b""").containsMatchIn(rawText)) "Healthcare / Balm"
+                else "Personal Care"
+            }
+            ProductCategory.GROCERY_FOOD -> {
+                when {
+                    Regex("""(?i)\b(Rice|Basmati)\b""").containsMatchIn(rawText) -> "Grocery / Rice"
+                    Regex("""(?i)\b(Dairy|Milk|Curd|Butter|Paneer)\b""").containsMatchIn(rawText) -> "Grocery / Dairy"
+                    Regex("""(?i)\b(Ice\s*Cream|Chocolate|Confectionery)\b""").containsMatchIn(rawText) -> "Grocery / Confectionery"
+                    Regex("""(?i)\b(Chil+[iy]+|Spices?|Masala|Pepper)\b""").containsMatchIn(rawText) -> "Grocery / Spices"
+                    Regex("""(?i)\b(Balm)\b""").containsMatchIn(rawText) -> "Healthcare / Balm"
+                    else -> "Grocery"
+                }
+            }
+            ProductCategory.BEVERAGE_SPIRIT -> "Beverage / Spirit"
+            ProductCategory.PRODUCT_WARRANTY -> "Product Warranty"
+            ProductCategory.GENERAL -> null
+            ProductCategory.UTILITY_INVOICE -> null
+        }
+
+        val fallbackType = eventType?.takeIf { it != EventType.OTHER }?.let { "General ${it.name.lowercase().replaceFirstChar { c -> c.uppercase() }}" } ?: "Other"
+        val brandCandidate = if (detectedProductType != null) null else extractedBrand
+        val displayTitle = brandCandidate ?: detectedProductType ?: fallbackType
+        return displayTitle
     }
 
     fun normalizeForExtraction(rawText: String): String =

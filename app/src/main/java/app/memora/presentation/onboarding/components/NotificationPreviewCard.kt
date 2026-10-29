@@ -113,11 +113,11 @@ fun NotificationPreviewCard(
             // Notification Content
             Text(
                 text = if (isDone)
-                    "✓ Organic Oat Milk marked completed!"
+                    "✓ Organic Rolled Oats marked completed!"
                 else if (isSnoozed)
                     "⏰ Reminder snoozed to tomorrow morning"
                 else
-                    "Organic Oat Milk expires in 2 days",
+                    "Organic Rolled Oats expires in 2 days",
                 style = MemoraTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = if (isDone) StatusCompleted else PrimaryNavy,
             )
@@ -130,7 +130,7 @@ fun NotificationPreviewCard(
                 else if (isSnoozed)
                     "We'll quietly nudge you again tomorrow at 9:00 AM."
                 else
-                    "Stored in Fridge. Best before Nov 28, 2026. Use it soon!",
+                    "Stored in Pantry. Best before Nov 14, 2026. Use it soon!",
                 style = MemoraTypography.caption,
                 color = TextCaption,
                 lineHeight = 16.sp,

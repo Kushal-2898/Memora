@@ -230,7 +230,7 @@ class OnboardingFlowTest {
         composeTestRule.onNodeWithTag("notification_preview_mark_done_btn").performClick()
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("✓ Organic Oat Milk marked completed!").assertIsDisplayed()
+        composeTestRule.onNodeWithText("✓ Organic Rolled Oats marked completed!").assertIsDisplayed()
     }
 
     @Test

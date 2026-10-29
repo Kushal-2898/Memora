@@ -182,7 +182,7 @@ fun InteractiveScanSimulator(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Organic Oat Milk",
+                                text = "Organic Rolled Oats",
                                 style = MemoraTypography.label.copy(fontWeight = FontWeight.Bold),
                                 color = PrimaryNavy,
                             )

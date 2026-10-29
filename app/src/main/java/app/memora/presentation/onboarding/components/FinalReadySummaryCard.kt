@@ -52,7 +52,7 @@ fun FinalReadySummaryCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("final_ready_summary_card"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {

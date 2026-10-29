@@ -484,7 +484,7 @@ object AppLog {
 
             // Plant Timber tree for structured logcat output.
             // Timber is an optional sink — if it fails, AppLog continues normally.
-            if (!isTimberPlanted) {
+            if (!isTimberPlanted && isDiagnosticsEnabled()) {
                 runCatching {
                     Timber.plant(Timber.DebugTree())
                     isTimberPlanted = true

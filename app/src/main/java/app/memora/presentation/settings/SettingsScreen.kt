@@ -21,12 +21,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Schedule
@@ -193,6 +195,28 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_architecture_title),
                     subtitle = stringResource(R.string.settings_architecture_desc),
                     testTag = "settings_architecture_card",
+                )
+                SettingsActionCard(
+                    icon = Icons.Outlined.Email,
+                    title = "Help & Support",
+                    subtitle = "Questions or feedback: klabsstudios@gmail.com",
+                    actionLabel = "Email",
+                    testTag = "settings_support_card",
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:klabsstudios@gmail.com")
+                            putExtra(Intent.EXTRA_SUBJECT, "[Memora Support v${BuildConfig.VERSION_NAME}] Feedback")
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "\n\n---\nDevice: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})\nMemora Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+                            )
+                        }
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No email app found: klabsstudios@gmail.com", Toast.LENGTH_LONG).show()
+                        }
+                    },
                 )
             }
 

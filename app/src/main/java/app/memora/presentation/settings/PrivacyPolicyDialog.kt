@@ -154,7 +154,7 @@ fun PrivacyPolicyDialog(
                     PolicySectionItem(
                         number = "7",
                         title = "Grievance Officer & Contact",
-                        content = "For questions, compliance inquiries, or Data Principal requests, contact our designated Grievance Officer at: meruvakushal@gmail.com.",
+                        content = "For questions, compliance inquiries, or Data Principal requests, contact our designated Grievance Officer at: klabsstudios@gmail.com.",
                     )
                 }
 

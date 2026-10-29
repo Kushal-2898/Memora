@@ -768,6 +768,15 @@ class DeterministicMemoryExtractorTest {
         val res4 = extractor.extractLocalResult("Rowezi Premium Footwear Invoice")
         assertEquals("Product Warranty", res4.title)
     }
+
+    @Test
+    fun `dot-matrix letter substitutions repair day month digits`() {
+        val res1 = extractor.extractLocalResult("EXP 14/ll/2026")
+        assertEquals(LocalDate.of(2026, 11, 14), res1.selectedEventDate)
+
+        val res2 = extractor.extractLocalResult("EXP 25/O9/2026")
+        assertEquals(LocalDate.of(2026, 9, 25), res2.selectedEventDate)
+    }
 }
 
 

@@ -73,10 +73,34 @@ class ExtractLocallyUseCase(
                 val parseStartTime = System.currentTimeMillis()
 
                 // Extract deterministic memory fields from structured blocks in natural reading order
-                val parsedLocalResult = if (extractedText.blocks.isNotEmpty()) {
+                var parsedLocalResult = if (extractedText.blocks.isNotEmpty()) {
                     deterministicExtractor.extractLocalResult(extractedText.blocks)
                 } else {
                     deterministicExtractor.extractLocalResult(extractedText.rawText)
+                }
+
+                // Dual-engine cascade: If primary engine found no date, query alternate on-device engine
+                if (parsedLocalResult.selectedEventDate == null && textExtractor is app.memora.platform.ocr.SelectableTextExtractor) {
+                    val fallbackEngine = if (textExtractor.activeEngine == app.memora.platform.ocr.ActiveOcrEngine.RAPID_OCR) {
+                        textExtractor.mlKitExtractor
+                    } else {
+                        textExtractor.rapidOcrExtractor
+                    }
+                    val fallbackTextResult = fallbackEngine.extractText(image.uri, scanId)
+                    if (fallbackTextResult.isSuccess) {
+                        val fallbackText = fallbackTextResult.getOrThrow()
+                        val fallbackParsed = if (fallbackText.blocks.isNotEmpty()) {
+                            deterministicExtractor.extractLocalResult(fallbackText.blocks)
+                        } else {
+                            deterministicExtractor.extractLocalResult(fallbackText.rawText)
+                        }
+                        if (fallbackParsed.selectedEventDate != null) {
+                            AppLog.i("CASCADE", "[#$id] Primary OCR found no date; Cascade recovered date: ${fallbackParsed.selectedEventDate}")
+                            parsedLocalResult = fallbackParsed.copy(
+                                title = parsedLocalResult.title?.takeIf { it != "Other" && it.isNotBlank() } ?: fallbackParsed.title
+                            )
+                        }
+                    }
                 }
                 
                 ScannerBenchmarkEngine.markParsingComplete(

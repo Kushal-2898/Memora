@@ -184,6 +184,10 @@ class DeterministicMemoryExtractor(
                 l = l.replace(Regex("""(?<=\b)0/(20\d{2}\b)"""), "10/$1")
                 l = l.replace(Regex("""(?<=\b)1/(20\d{2}\b)"""), "01/$1")
                 l = l.replace(Regex("""\b[Oo](?=[0-9][/.-])"""), "0")
+                l = l.replace(Regex("""(?<=[/.-])[iIlL]{2}(?=[/.-])"""), "11")
+                l = l.replace(Regex("""(?<=[/.-])[iIlL]([0-9])(?=[/.-])"""), "1$1")
+                l = Regex("""(?<=[/.-])([0-9])[iIlL](?=[/.-])""").replace(l) { mr -> "${mr.groupValues[1]}1" }
+                l = l.replace(Regex("""(?<=[/.-])[oO](?=[0-9][/.-])"""), "0")
 
                 // 5-digit dot-matrix DMMYY pattern e.g. "27526" -> "27/05/2026", "37526"" -> "27/05/2026"
                 l = l.replace(Regex("""(?<!\d)\b([0-2]\d|3[01])([1-9])(2[4-9]|3\d)["']?\b(?!\d)"""), "$1/0$2/20$3")

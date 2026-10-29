@@ -370,7 +370,7 @@ fun CameraPreviewView(
                 .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.Start,
         ) {
             IconButton(
                 onClick = onBack,
@@ -385,23 +385,7 @@ fun CameraPreviewView(
                 )
             }
 
-            // Torch / Flash Toggle Button
-            IconButton(
-                onClick = {
-                    val next = !isTorchOn
-                    isTorchOn = next
-                    cameraManager?.enableTorch(next)
-                },
-                modifier = Modifier
-                    .testTag("camera_torch_button")
-                    .size(48.dp),
-            ) {
-                Icon(
-                    imageVector = if (isTorchOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                    contentDescription = if (isTorchOn) stringResource(R.string.capture_torch_on) else stringResource(R.string.capture_torch_off),
-                    tint = if (isTorchOn) Color(0xFFFFD54F) else Color.White,
-                )
-            }
+
         }
 
         // Bottom Controls Bar with Gallery quick action
@@ -451,8 +435,26 @@ fun CameraPreviewView(
                     }
                 }
 
-                // Right: Empty spacer for symmetry
-                Spacer(modifier = Modifier.size(48.dp))
+                // Right: Torch / Flash Toggle Button
+                IconButton(
+                    onClick = {
+                        val next = !isTorchOn
+                        isTorchOn = next
+                        cameraManager?.enableTorch(next)
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (isTorchOn) Color(0xFFFFD54F).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.15f))
+                        .testTag("camera_torch_button"),
+                ) {
+                    Icon(
+                        imageVector = if (isTorchOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                        contentDescription = if (isTorchOn) stringResource(R.string.capture_torch_on) else stringResource(R.string.capture_torch_off),
+                        tint = if (isTorchOn) Color(0xFFFFD54F) else Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
     }

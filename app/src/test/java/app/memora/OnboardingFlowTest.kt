@@ -210,11 +210,6 @@ class OnboardingFlowTest {
         }
 
         composeTestRule.onNodeWithTag("scan_simulator_container").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("scan_simulator_trigger_btn").performClick()
-
-        composeTestRule.waitUntil(3000) {
-            composeTestRule.onAllNodesWithTag("scan_simulator_result_chip").fetchSemanticsNodes().isNotEmpty()
-        }
         composeTestRule.onNodeWithTag("scan_simulator_result_chip").assertIsDisplayed()
     }
 

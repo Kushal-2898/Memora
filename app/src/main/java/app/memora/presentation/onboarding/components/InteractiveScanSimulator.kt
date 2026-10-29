@@ -23,9 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +54,6 @@ import app.memora.ui.theme.CardWhite
 import app.memora.ui.theme.MemoraTypography
 import app.memora.ui.theme.PrimaryNavy
 import app.memora.ui.theme.StatusCompleted
-import app.memora.ui.theme.StatusDueToday
 import app.memora.ui.theme.SurfaceCool
 import app.memora.ui.theme.TextCaption
 
@@ -69,9 +65,6 @@ import app.memora.ui.theme.TextCaption
 fun InteractiveScanSimulator(
     modifier: Modifier = Modifier,
 ) {
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-    var isManualReplay by remember { mutableStateOf(false) }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -91,33 +84,22 @@ fun InteractiveScanSimulator(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(StatusCompleted),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "LIVE PRODUCT SCAN",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AccentIndigo,
-                        letterSpacing = 0.8.sp,
-                    )
-                }
-
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(StatusCompleted),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "AUTO LOOP · 0:08",
+                    text = "LIVE PRODUCT SCAN",
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF64748B),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AccentIndigo,
+                    letterSpacing = 0.8.sp,
                 )
             }
 
@@ -133,18 +115,17 @@ fun InteractiveScanSimulator(
                 LoopingVideoPlayer(
                     videoResId = R.raw.onboarding_scan_demo,
                     modifier = Modifier.fillMaxSize(),
-                    onPlayerReady = { player -> mediaPlayer = player },
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 2. Structured Extraction Result Card
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("scan_simulator_result_chip"),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -156,7 +137,7 @@ fun InteractiveScanSimulator(
                         tint = AccentIndigo,
                         modifier = Modifier.size(13.dp),
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = "Instant Optical Scan · Structured Memory Created",
                         style = MemoraTypography.caption.copy(
@@ -173,79 +154,46 @@ fun InteractiveScanSimulator(
                         .clip(RoundedCornerShape(12.dp))
                         .background(SurfaceCool)
                         .border(1.dp, BorderLight, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column {
                             Text(
                                 text = "Organic Rolled Oats",
-                                style = MemoraTypography.label.copy(fontWeight = FontWeight.Bold),
+                                style = MemoraTypography.label.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                ),
                                 color = PrimaryNavy,
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Groceries · Auto-detected Expiry",
-                                style = MemoraTypography.caption,
+                                text = "Pantry · Groceries · Auto-detected",
+                                style = MemoraTypography.caption.copy(fontSize = 12.sp),
                                 color = TextCaption,
                             )
                         }
 
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(StatusDueToday.copy(alpha = 0.12f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(StatusCompleted.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = "EXP NOV 14",
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = StatusDueToday,
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = StatusCompleted,
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 3. User interaction button (Replay video)
-            Button(
-                onClick = {
-                    try {
-                        mediaPlayer?.seekTo(0)
-                        mediaPlayer?.start()
-                    } catch (_: Throwable) {
-                    }
-                    isManualReplay = !isManualReplay
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .testTag("scan_simulator_trigger_btn"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentIndigo,
-                ),
-                shape = RoundedCornerShape(10.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = CardWhite,
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Replay product scan video",
-                    style = MemoraTypography.label.copy(
-                        color = CardWhite,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                )
             }
         }
     }
@@ -255,7 +203,6 @@ fun InteractiveScanSimulator(
 private fun LoopingVideoPlayer(
     videoResId: Int,
     modifier: Modifier = Modifier,
-    onPlayerReady: (MediaPlayer) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var playerRef by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -290,7 +237,7 @@ private fun LoopingVideoPlayer(
                 surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                         try {
-                            val player = MediaPlayer().apply {
+                            MediaPlayer().apply {
                                 setSurface(Surface(surface))
                                 val uri = Uri.parse("android.resource://${ctx.packageName}/$videoResId")
                                 setDataSource(ctx, uri)
@@ -300,7 +247,6 @@ private fun LoopingVideoPlayer(
                                 setOnPreparedListener {
                                     start()
                                     playerRef = this
-                                    onPlayerReady(this)
                                 }
                             }
                         } catch (_: Throwable) {

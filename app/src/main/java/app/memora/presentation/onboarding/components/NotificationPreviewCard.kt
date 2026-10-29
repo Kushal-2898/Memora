@@ -130,7 +130,7 @@ fun NotificationPreviewCard(
                 else if (isSnoozed)
                     "We'll quietly nudge you again tomorrow at 9:00 AM."
                 else
-                    "Stored in Pantry. Best before Nov 14, 2026. Use it soon!",
+                    "Stored in Pantry. Best before Nov 14, 2027. Use it soon!",
                 style = MemoraTypography.caption,
                 color = TextCaption,
                 lineHeight = 16.sp,

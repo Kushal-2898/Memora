@@ -173,7 +173,7 @@ fun LossAversionCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "100% On-device OCR reads the date automatically",
+                            text = "Smart on-device scanning reads dates automatically",
                             style = MemoraTypography.caption,
                             color = PrimaryNavy,
                             lineHeight = 14.sp,

@@ -18,12 +18,13 @@ class UpdateMemoryUseCase(
         newEventType: app.memora.domain.model.EventType,
         newEventDate: java.time.LocalDate
     ): Result<Unit> {
-        if (newTitle.isBlank()) return Result.failure(MemoraError.Validation("Title cannot be blank."))
+        val sanitizedTitle = newTitle.trim().take(120)
+        if (sanitizedTitle.isBlank()) return Result.failure(MemoraError.Validation("Title cannot be blank."))
 
         val daysDifference = ChronoUnit.DAYS.between(memory.eventDate, newEventDate)
         
         val updatedMemory = memory.copy(
-            title = newTitle,
+            title = sanitizedTitle,
             eventType = newEventType,
             eventDate = newEventDate,
             updatedAt = Instant.now()
@@ -31,7 +32,7 @@ class UpdateMemoryUseCase(
 
         val memoryWithReminders = memoryRepository.getMemoryWithReminders(memory.id)
         val updatedReminders = memoryWithReminders?.reminders?.map { reminder ->
-            val newReminderDate = reminder.reminderStartDate.plusDays(daysDifference)
+            val newReminderDate = reminder.reminderStartDate.plusDays(daysDifference).coerceAtMost(newEventDate)
             reminder.copy(
                 reminderStartDate = newReminderDate,
                 updatedAt = Instant.now()

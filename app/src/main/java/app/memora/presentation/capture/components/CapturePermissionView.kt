@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.memora.R
 import app.memora.presentation.common.PrimaryButton
 import app.memora.presentation.common.SecondaryButton
@@ -96,6 +97,15 @@ fun CapturePermissionView(
                 text = stringResource(R.string.capture_camera_permission_desc),
                 style = MemoraTypography.caption,
                 color = TextCaption,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Memora is an auxiliary reminder aid. Always verify dates and packaging physically before consumption.",
+                style = MemoraTypography.caption.copy(fontSize = 12.sp),
+                color = TextCaption.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,
             )
 

@@ -30,4 +30,7 @@
 -keep class app.memora.domain.model.** { *; }
 -keep class app.memora.data.local.** { *; }
 -keep class app.memora.domain.extraction.** { *; }
+-keep class app.memora.platform.nlp.** { *; }
+-keep class app.memora.platform.cv.** { *; }
+-keep class app.memora.data.sync.** { *; }
 

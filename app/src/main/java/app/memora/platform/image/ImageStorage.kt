@@ -32,4 +32,36 @@ interface ImageStorage {
      * Deletes a managed capture file if an operation is cancelled or replaced.
      */
     fun deleteImage(uriString: String): Boolean
+
+    /**
+     * Downscales (only above QHD 2560px) and compresses a captured image in-app before DB persistence.
+     */
+    suspend fun compressForEvidence(uriString: String): ByteArray? = null
+
+    /**
+     * Decompresses and decodes an evidence blob back into raw image bytes in-app after DB retrieval.
+     */
+    fun decompressEvidenceBytes(compressed: ByteArray): ByteArray = EvidenceHash.gunzipIfNeeded(compressed)
+}
+
+object EvidenceHash {
+    fun sha256Hex(bytes: ByteArray): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    fun gzip(bytes: ByteArray): ByteArray {
+        val bos = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(bos).use { it.write(bytes) }
+        return bos.toByteArray()
+    }
+
+    fun gunzipIfNeeded(bytes: ByteArray): ByteArray {
+        if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
+            return runCatching {
+                java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(bytes)).use { it.readBytes() }
+            }.getOrDefault(bytes)
+        }
+        return bytes
+    }
 }

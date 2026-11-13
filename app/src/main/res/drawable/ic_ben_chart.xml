@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Bar Chart icon: Forest Green #214A34 -->
+    <path
+        android:fillColor="#214A34"
+        android:pathData="M5,12H8V20H5V12ZM10.5,8H13.5V20H10.5V8ZM16,4H19V20H16V4Z"/>
+</vector>

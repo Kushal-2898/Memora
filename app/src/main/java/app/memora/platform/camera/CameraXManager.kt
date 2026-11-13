@@ -23,6 +23,21 @@ import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
 /**
+ * Flash modes supported by Memora's camera scanner.
+ */
+enum class CameraFlashMode {
+    AUTO,
+    ON,
+    OFF;
+
+    fun next(): CameraFlashMode = when (this) {
+        AUTO -> ON
+        ON -> OFF
+        OFF -> AUTO
+    }
+}
+
+/**
  * Concrete CameraX controller handling lifecycle binding, lens selection,
  * hardware availability checks, torch flash control, live frame analysis,
  * and photo capture to managed storage.
@@ -34,6 +49,8 @@ class CameraXManager(
     private var camera: Camera? = null
     private var imageAnalysisUseCase: ImageAnalysis? = null
     private var analyzerExecutor: ExecutorService? = null
+    var currentFlashMode: CameraFlashMode = CameraFlashMode.AUTO
+        private set
 
     fun isCameraAvailable(): Boolean {
         return runCatching {
@@ -63,11 +80,23 @@ class CameraXManager(
 
                 val resolutionSelector = ResolutionSelector.Builder()
                     .setAspectRatioStrategy(androidx.camera.core.resolutionselector.AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                    .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(1920, 2560),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                        )
+                    )
                     .build()
 
                 val imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setFlashMode(
+                        when (currentFlashMode) {
+                            CameraFlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+                            CameraFlashMode.ON -> ImageCapture.FLASH_MODE_ON
+                            CameraFlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+                        }
+                    )
                     .setResolutionSelector(resolutionSelector)
                     .build()
 
@@ -111,11 +140,44 @@ class CameraXManager(
                     )
                 }
                 camera = boundCamera
+                runCatching { boundCamera.cameraControl.setZoomRatio(1.25f) }
+                if (currentFlashMode == CameraFlashMode.ON) {
+                    enableTorch(true)
+                }
+                focusCenter(previewView)
                 onSuccess()
             } catch (exc: Throwable) {
                 onError(exc)
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    fun setFlashMode(mode: CameraFlashMode) {
+        currentFlashMode = mode
+        val cameraXMode = when (mode) {
+            CameraFlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+            CameraFlashMode.ON -> ImageCapture.FLASH_MODE_ON
+            CameraFlashMode.OFF -> ImageCapture.FLASH_MODE_OFF
+        }
+        imageCaptureUseCase?.flashMode = cameraXMode
+        when (mode) {
+            CameraFlashMode.ON -> enableTorch(true)
+            CameraFlashMode.OFF -> enableTorch(false)
+            CameraFlashMode.AUTO -> enableTorch(false)
+        }
+    }
+
+    fun getFlashMode(): CameraFlashMode = currentFlashMode
+
+    fun focusCenter(previewView: PreviewView? = null) {
+        runCatching {
+            val point = androidx.camera.core.SurfaceOrientedMeteringPointFactory(1f, 1f)
+                .createPoint(0.5f, 0.5f, 0.25f)
+            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                .setAutoCancelDuration(1200, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+            camera?.cameraControl?.startFocusAndMetering(action)
+        }
     }
 
     fun enableTorch(enabled: Boolean) {
@@ -133,9 +195,9 @@ class CameraXManager(
     fun focusAt(x: Float, y: Float, previewView: PreviewView) {
         runCatching {
             val factory = previewView.meteringPointFactory
-            val point = factory.createPoint(x, y)
+            val point = factory.createPoint(x, y, 0.2f)
             val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                .setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
+                .setAutoCancelDuration(1200, java.util.concurrent.TimeUnit.MILLISECONDS)
                 .build()
             camera?.cameraControl?.startFocusAndMetering(action)
         }

@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -24,11 +27,26 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
+      val localProps = Properties().apply {
+        val propFile = rootProject.file("local.properties")
+        if (propFile.exists()) {
+          FileInputStream(propFile).use { load(it) }
+        }
+      }
+      val keystorePath = System.getenv("KEYSTORE_PATH")
+        ?: localProps.getProperty("KEYSTORE_PATH")
+        ?: "${rootDir}/memora-release-key.jks"
+      val resolvedFile = file(keystorePath).let { if (it.isAbsolute) it else file("${rootDir}/$keystorePath") }
+      storeFile = resolvedFile
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+        ?: localProps.getProperty("STORE_PASSWORD")
+        ?: ""
+      keyAlias = System.getenv("KEY_ALIAS")
+        ?: localProps.getProperty("KEY_ALIAS")
+        ?: "memora_upload"
       keyPassword = System.getenv("KEY_PASSWORD")
+        ?: localProps.getProperty("KEY_PASSWORD")
+        ?: ""
     }
   }
 
@@ -39,8 +57,7 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val hasReleaseKey = !System.getenv("STORE_PASSWORD").isNullOrBlank() && !System.getenv("KEY_PASSWORD").isNullOrBlank()
-      signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+      signingConfig = signingConfigs.getByName("release")
     }
     debug {
       buildConfigField("boolean", "MEMORA_DIAGNOSTICS", "true")
@@ -76,7 +93,7 @@ ksp {
 }
 
 dependencies {
-  implementation(files("libs/RapidOcrAndroidNcnn.aar"))
+
   implementation(libs.generativeai)
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
@@ -109,14 +126,15 @@ dependencies {
   // implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.functions)
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
+  implementation(libs.firebase.auth)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
   // implementation(libs.firebase.appcheck.recaptcha)
   // implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)

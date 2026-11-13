@@ -39,6 +39,7 @@ class MlKitTextExtractor(
     override suspend fun extractText(imageUri: String, scanId: String?): Result<ExtractedText> = withContext(Dispatchers.IO) {
         val id = scanId ?: "N/A"
         val startTime = System.currentTimeMillis()
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         try {
             AppLog.checkMainThreadViolation("OCR")
             AppLog.recordOcrStart(id, triggerReason = "UNKNOWN", dispatcherLabel = "IO")
@@ -50,8 +51,6 @@ class MlKitTextExtractor(
             } else {
                 imageUri
             }
-
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
             // Step 1: Decode reticle crop via ScanRegionCropper
             val baseCroppedBitmap = ScanRegionCropper.cropReticleRegion(filePath)
@@ -67,17 +66,23 @@ class MlKitTextExtractor(
                     bestVisionText = v1Text
                     winningVariant = "RETICLE_ORIGINAL"
 
-                    // Multi-orientation check (zero bitmap allocation): 90 deg and 270 deg
+                    // Full 4-way orientation sweep: 0°, 90°, 180°, 270° — gives unbroken 360° coverage
                     if (!hasAnchoredDate(v1Text.text)) {
                         val v1Rot90 = processBitmap(recognizer, baseCroppedBitmap, 90)
                         if (hasAnchoredDate(v1Rot90.text)) {
                             bestVisionText = v1Rot90
                             winningVariant = "RETICLE_ORIGINAL_90DEG"
                         } else {
-                            val v1Rot270 = processBitmap(recognizer, baseCroppedBitmap, 270)
-                            if (hasAnchoredDate(v1Rot270.text)) {
-                                bestVisionText = v1Rot270
-                                winningVariant = "RETICLE_ORIGINAL_270DEG"
+                            val v1Rot180 = processBitmap(recognizer, baseCroppedBitmap, 180)
+                            if (hasAnchoredDate(v1Rot180.text)) {
+                                bestVisionText = v1Rot180
+                                winningVariant = "RETICLE_ORIGINAL_180DEG"
+                            } else {
+                                val v1Rot270 = processBitmap(recognizer, baseCroppedBitmap, 270)
+                                if (hasAnchoredDate(v1Rot270.text)) {
+                                    bestVisionText = v1Rot270
+                                    winningVariant = "RETICLE_ORIGINAL_270DEG"
+                                }
                             }
                         }
                     }
@@ -177,6 +182,18 @@ class MlKitTextExtractor(
                                     if (hasAnchoredDate(fullRot90.text)) {
                                         bestVisionText = fullRot90
                                         winningVariant = "FULL_IMAGE_FALLBACK_90DEG"
+                                    } else {
+                                        val fullRot180 = processBitmap(recognizer, fullBmp, 180)
+                                        if (hasAnchoredDate(fullRot180.text)) {
+                                            bestVisionText = fullRot180
+                                            winningVariant = "FULL_IMAGE_FALLBACK_180DEG"
+                                        } else {
+                                            val fullRot270 = processBitmap(recognizer, fullBmp, 270)
+                                            if (hasAnchoredDate(fullRot270.text)) {
+                                                bestVisionText = fullRot270
+                                                winningVariant = "FULL_IMAGE_FALLBACK_270DEG"
+                                            }
+                                        }
                                     }
                                 }
                             } finally {
@@ -245,6 +262,8 @@ class MlKitTextExtractor(
                 dispatcherLabel = "IO",
             )
             Result.failure(e)
+        } finally {
+            runCatching { recognizer.close() }
         }
     }
 

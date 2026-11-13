@@ -121,6 +121,7 @@ data class LocalExtractionResult(
     val dateLocation: DateLocation = DateLocation.UNKNOWN,
     val markingStyle: MarkingStyle = MarkingStyle.UNKNOWN,
     val explanation: String? = null,
+    val detectedBarcode: String? = null,
 )
 
 /** Combined OCR and local extraction output from on-device analysis. */

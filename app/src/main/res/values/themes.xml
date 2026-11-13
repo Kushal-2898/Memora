@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FAF7F2</item>
+        <item name="android:colorBackground">#FAF7F2</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:dialogTheme">@android:style/Theme.Material.Light.Dialog</item>
+        <item name="android:alertDialogTheme">@android:style/Theme.Material.Light.Dialog.Alert</item>
+        <item name="android:datePickerDialogTheme">@android:style/Theme.Material.Light.Dialog</item>
+        <item name="android:timePickerDialogTheme">@android:style/Theme.Material.Light.Dialog</item>
+    </style>
 </resources>

@@ -3,6 +3,7 @@ package app.memora.platform.notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
@@ -93,7 +94,7 @@ class ReminderNotificationWorker(
         val notificationMessage = when (status) {
             ReminderStatus.REMINDER_ACTIVE -> {
                 val daysUntil = ChronoUnit.DAYS.between(today, eventDate)
-                "Reminder: $effectiveTitle — due in $daysUntil days"
+                if (daysUntil == 1L) "Reminder: $effectiveTitle — due tomorrow" else "Reminder: $effectiveTitle — due in $daysUntil days"
             }
             ReminderStatus.DUE_TODAY -> "Due today: $effectiveTitle"
             ReminderStatus.OVERDUE -> "Overdue: $effectiveTitle"
@@ -125,16 +126,17 @@ class ReminderNotificationWorker(
             if (nextResult.isFailure) return Result.retry()
         }
 
-        sendNotification(reminderId = reminderId, message = notificationMessage)
+        sendNotification(reminderId = reminderId, message = notificationMessage, memoryId = memory?.id ?: memoryId)
 
         return Result.success()
     }
 
-    private fun sendNotification(reminderId: String, message: String) {
+    private fun sendNotification(reminderId: String, message: String, memoryId: String = "") {
         val notificationId = reminderId.hashCode()
 
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            if (memoryId.isNotBlank()) putExtra(KEY_MEMORY_ID, memoryId)
         }
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
@@ -143,15 +145,44 @@ class ReminderNotificationWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val completeIntent = Intent(applicationContext, ReminderAlarmReceiver::class.java).apply {
+            action = ReminderAlarmReceiver.ACTION_COMPLETE_REMINDER
+            putExtra(KEY_REMINDER_ID, reminderId)
+        }
+        val completePendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            (reminderId + "_done").hashCode(),
+            completeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val snoozeIntent = Intent(applicationContext, ReminderAlarmReceiver::class.java).apply {
+            action = ReminderAlarmReceiver.ACTION_SNOOZE_REMINDER
+            putExtra(KEY_REMINDER_ID, reminderId)
+        }
+        val snoozePendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            (reminderId + "_snooze").hashCode(),
+            snoozeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         val channelId = MemoraApplication.REMINDER_CHANNEL_ID
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notification = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(message)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setSound(soundUri)
+            .setVibrate(longArrayOf(0, 300, 200, 300))
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .addAction(0, "Mark Done", completePendingIntent)
+            .addAction(0, "Remind Later", snoozePendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
         try {

@@ -1,0 +1,35 @@
+# Screen 1: Welcome — Audited Element-Level Geometry & Positioning Specification
+
+> **Audited Viewport Metrics:**
+> - Reference Display Viewport: **238 px × 671 px** (Aspect Ratio: **0.3547**, ~1:2.82)
+> - Target Android Screen Viewport: **411 dp × 914 dp** (Aspect Ratio: **0.4497**, ~1:2.22 / 9:20)
+> - System Inset Accounting: Status Bar = **24 dp** (top), Gesture Nav Bar = **24 dp** (bottom)
+> - Target Android Content Viewport: **411 dp × 866 dp** (Aspect Ratio: **0.4746**, ~1:2.11)
+> - Scaling Governance: Uniform scaling ($S_x \approx 1.73$) on fixed aspect-ratio icons, product thumbnails, badges, and brand tiles to prevent anisotropic squashing; responsive reflow and vertical arrangement on text, spacing, and container cards.
+
+| Element ID | Type | Ref X | Ref Y | Ref W | Ref H | X % | Y % | W % | H % | Target X | Target Y | Target W | Target H | Alignment | Anchor | Z | Corner Radius | Internal Padding | Spacing | Color | Layout Behavior | Ratio Mode |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `s1_bg` | Background | 0 | 0 | 238 | 671 | 0.00% | 0.00% | 100.00% | 100.00% | 0.0dp | 24.0dp | 411.0dp | 866.0dp | Fill | Screen | 0 | 0dp | 0dp | 0dp | `#214A34` | Fill Screen | Responsive Reflow |
+| `s1_status_bar` | Status Bar Inset | 0 | 0 | 238 | 24 | 0.00% | 0.00% | 100.00% | 3.58% | 0.0dp | 24.0dp | 411.0dp | 31.0dp | Top Stretch | Screen Top | 10 | 0dp | H: 18dp | 0dp | `Transparent` | System Inset | Responsive Reflow |
+| `s1_status_time` | Text (9:41) | 18 | 10 | 28 | 12 | 7.56% | 1.49% | 11.76% | 1.79% | 31.1dp | 36.9dp | 29.0dp | 12.4dp | Left Center | Status Bar | 11 | 0dp | 0dp | L: 18dp | `#FFFFFF` | Fixed Text | Fixed (1:1) |
+| `s1_status_icons` | Vector Icons (Signal/WiFi/Bat) | 188 | 10 | 32 | 11 | 78.99% | 1.49% | 13.45% | 1.64% | 324.7dp | 36.9dp | 33.2dp | 33.2dp | Right Center | Status Bar | 11 | 0dp | 0dp | R: 16dp | `#FFFFFF` | Fixed Icons | Fixed (1:1) |
+| `s1_upper_green` | Surface Container | 0 | 0 | 238 | 300 | 0.00% | 0.00% | 100.00% | 44.71% | 0.0dp | 24.0dp | 411.0dp | 387.2dp | Top Stretch | Screen Top | 1 | 0dp | 0dp | 0dp | `#214A34` | Responsive Top Block | Responsive Reflow |
+| `s1_logo_origami` | Vector/3D Illustration (Origami M) | 73 | 90 | 92 | 70 | 30.67% | 13.41% | 38.66% | 10.43% | 126.1dp | 140.2dp | 95.3dp | 72.5dp | Center Horizontal | Upper Container | 2 | 0dp | 0dp | T: 90px | `#FFFFFF / #E06D53` | Fixed Aspect Ratio | Fixed (1:1) |
+| `s1_wordmark` | Text ('Memora') | 64 | 165 | 110 | 26 | 26.89% | 24.59% | 46.22% | 3.87% | 110.5dp | 237.0dp | 190.0dp | 33.6dp | Center Horizontal | Below Logo | 2 | 0dp | 0dp | T: 5px | `#FFFFFF` | Responsive Typography | Responsive Reflow |
+| `s1_tagline` | Text ('Your life, remembered.') | 49 | 196 | 140 | 18 | 20.59% | 29.21% | 58.82% | 2.68% | 84.6dp | 277.0dp | 241.8dp | 23.2dp | Center Horizontal | Below Wordmark | 2 | 0dp | 0dp | T: 5px | `#FAF7F2 (85%)` | Responsive Typography | Responsive Reflow |
+| `s1_wave_sec_cream` | Organic Shape (Secondary Cream) | 0 | 230 | 238 | 180 | 0.00% | 34.28% | 100.00% | 26.83% | 0.0dp | 320.8dp | 411.0dp | 232.3dp | Bottom Fill | Wave Group | 3 | 0dp | 0dp | 0dp | `#FFFDF9 (40%)` | Responsive Bézier | Responsive Reflow |
+| `s1_wave_terracotta` | Organic Shape (Terracotta Wave) | 88 | 255 | 150 | 155 | 36.97% | 38.00% | 63.03% | 23.10% | 152.0dp | 353.1dp | 259.0dp | 200.0dp | Right Middle | Wave Group | 4 | 0dp | 0dp | 0dp | `#E06D53` | Responsive Bézier | Responsive Reflow |
+| `s1_wave_main_cream` | Organic Shape (Main Cream Base) | 0 | 280 | 238 | 391 | 0.00% | 41.73% | 100.00% | 58.27% | 0.0dp | 385.4dp | 411.0dp | 504.6dp | Bottom Fill | Wave Group | 5 | Wave Curve | 0dp | 0dp | `#FAF7F2` | Responsive Bézier Surface | Responsive Reflow |
+| `s1_leaf_left` | Vector Art (Left Botanical Leaf) | 154 | 282 | 36 | 68 | 64.71% | 42.03% | 15.13% | 10.13% | 265.9dp | 388.0dp | 37.3dp | 70.5dp | Right Aligned | Wave Group | 6 | 0dp | 0dp | 0dp | `#214A34 / #4A7C59` | Fixed Aspect Ratio | Fixed (1:1) |
+| `s1_leaf_right` | Vector Art (Right Botanical Leaf) | 186 | 295 | 40 | 78 | 78.15% | 43.96% | 16.81% | 11.62% | 321.2dp | 404.7dp | 41.4dp | 80.8dp | Right Margin | Wave Group | 6 | 0dp | 0dp | 0dp | `#214A34 / #355E46` | Fixed Aspect Ratio | Fixed (1:1) |
+| `s1_headline` | Text ('Never miss\nwhat matters') | 20 | 390 | 180 | 52 | 8.40% | 58.12% | 75.63% | 7.75% | 34.5dp | 527.3dp | 310.8dp | 67.1dp | Left Aligned | Cream Base | 7 | 0dp | 0dp | T: 24dp | `#19251F` | Responsive Typography | Responsive Reflow |
+| `s1_description` | Text ('Track expiry dates, renewals...) | 20 | 448 | 198 | 48 | 8.40% | 66.77% | 83.19% | 7.15% | 34.5dp | 602.2dp | 341.9dp | 61.9dp | Left Aligned | Below Headline | 7 | 0dp | 0dp | T: 8dp | `#68716B` | Responsive Typography | Responsive Reflow |
+| `s1_progress_container` | Row Container (4 Dots) | 20 | 530 | 198 | 12 | 8.40% | 78.99% | 83.19% | 1.79% | 34.5dp | 708.0dp | 341.9dp | 15.5dp | Left Center | Below Description | 7 | 0dp | 0dp | T: 32dp | `Transparent` | Row Container | Responsive Reflow |
+| `s1_dot_1` | Circle Vector (Active Step 1) | 20 | 532 | 8 | 8 | 8.40% | 79.28% | 3.36% | 1.19% | 34.5dp | 710.6dp | 8.3dp | 8.3dp | Left | Progress Row | 8 | Circle | 0dp | R: 6dp | `#214A34` | Fixed Perfect Circle | Fixed (1:1) |
+| `s1_dot_2` | Circle Vector (Inactive Step 2) | 34 | 532 | 8 | 8 | 14.29% | 79.28% | 3.36% | 1.19% | 58.7dp | 710.6dp | 8.3dp | 8.3dp | Left | Progress Row | 8 | Circle | 0dp | R: 6dp | `#E8E1D7` | Fixed Perfect Circle | Fixed (1:1) |
+| `s1_dot_3` | Circle Vector (Inactive Step 3) | 48 | 532 | 8 | 8 | 20.17% | 79.28% | 3.36% | 1.19% | 82.9dp | 710.6dp | 8.3dp | 8.3dp | Left | Progress Row | 8 | Circle | 0dp | R: 6dp | `#E8E1D7` | Fixed Perfect Circle | Fixed (1:1) |
+| `s1_dot_4` | Circle Vector (Inactive Step 4) | 62 | 532 | 8 | 8 | 26.05% | 79.28% | 3.36% | 1.19% | 107.1dp | 710.6dp | 8.3dp | 8.3dp | Left | Progress Row | 8 | Circle | 0dp | 0dp | `#E8E1D7` | Fixed Perfect Circle | Fixed (1:1) |
+| `s1_btn_primary` | Button Container ('Get started →') | 18 | 570 | 202 | 48 | 7.56% | 84.95% | 84.87% | 7.15% | 31.1dp | 759.6dp | 348.8dp | 61.9dp | Bottom Stretch | Screen Bottom | 7 | Rounded 16dp | V: 12dp, H: 20dp | B: 24dp | `#214A34` | Responsive Width Button | Responsive Reflow |
+| `s1_btn_label` | Text ('Get started') | 72 | 584 | 80 | 18 | 30.25% | 87.03% | 33.61% | 2.68% | 124.3dp | 777.7dp | 138.2dp | 23.2dp | Center Align | Button Center | 8 | 0dp | 0dp | R: 8px | `#FFFFFF` | Responsive Typography | Responsive Reflow |
+| `s1_btn_arrow` | Vector Icon ('→') | 156 | 585 | 14 | 14 | 65.55% | 87.18% | 5.88% | 2.09% | 269.4dp | 779.0dp | 14.5dp | 14.5dp | Center Right | Button Center | 8 | 0dp | 0dp | L: 8px | `#FFFFFF` | Fixed Icon (1:1) | Fixed (1:1) |
+| `s1_nav_inset` | Navigation Bar Inset | 0 | 647 | 238 | 24 | 0.00% | 96.42% | 100.00% | 3.58% | 0.0dp | 859.0dp | 411.0dp | 31.0dp | Bottom Stretch | Screen Bottom | 10 | 0dp | 0dp | 0dp | `Transparent` | System Inset | Responsive Reflow |

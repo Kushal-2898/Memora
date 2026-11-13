@@ -6,9 +6,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToString
 import androidx.test.core.app.ApplicationProvider
 import app.memora.data.local.DefaultOnboardingPreferences
 import app.memora.di.DefaultAppContainer
@@ -22,6 +25,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -31,7 +36,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36], application = MemoraApplication::class)
+@Config(sdk = [36], application = MemoraApplication::class, qualifiers = "w411dp-h914dp-xxhdpi")
 class OnboardingFlowTest {
 
     @get:Rule
@@ -74,12 +79,11 @@ class OnboardingFlowTest {
         composeTestRule.onNodeWithTag("onboarding_app_title").assertIsDisplayed()
 
         // Screen 1 copy and progress
-        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_progress_text").assertIsDisplayed()
-        composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Never miss", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_indicator_dots").assertIsDisplayed()
 
-        // Screen 1 Loss Aversion Hero Card
-        composeTestRule.onNodeWithTag("onboarding_loss_aversion_card").assertIsDisplayed()
+        // Screen 1 Hero Logo
+        composeTestRule.onNodeWithContentDescription("Memora Logo").assertIsDisplayed()
 
         // Screen 1 actions: Next and Skip present, Back NOT present
         composeTestRule.onNodeWithTag("onboarding_btn_next").assertIsDisplayed()
@@ -128,54 +132,59 @@ class OnboardingFlowTest {
         }
 
         // Screen 1
-        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_loss_aversion_card").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Never miss", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_back").assertDoesNotExist()
 
         // Advance to Screen 2
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Choose what you track.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("2 of 4").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_category_grid").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_btn_back").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Scan product labels").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_skip").assertIsDisplayed()
 
         // Advance to Screen 3
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Smart visual capture.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("3 of 4").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("scan_simulator_container").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Set reminders").assertIsDisplayed()
 
         // Advance to Screen 4
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("Let Memora remind you.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("4 of 4").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("notification_preview_card").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Track everything").assertIsDisplayed()
 
-        // Advance to Final Screen
+        // Advance to Screen 5
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        composeTestRule.onNodeWithText("You're ready to begin.").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("final_ready_summary_card").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Stay on top").assertIsDisplayed()
+
+        // Advance to Screen 6
+        composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("You’re all set!", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_get_started").assertIsDisplayed()
 
-        // Educational progress and skip must NOT be displayed on final screen
-        composeTestRule.onNodeWithTag("onboarding_progress_text").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("onboarding_btn_skip").assertDoesNotExist()
+        // Advance to Screen 7 (Account Creation)
+        composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").assertIsDisplayed()
 
         // Should not have completed yet
         assertFalse(completed)
 
-        // Tap Get started
-        composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        // Tap Continue on Screen 7 to complete
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
         composeTestRule.waitForIdle()
         assertTrue(completed)
     }
@@ -238,17 +247,17 @@ class OnboardingFlowTest {
 
         // Move to Screen 2
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Choose what you track.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Scan product labels").assertIsDisplayed()
 
-        // Tap Back
-        composeTestRule.onNodeWithTag("onboarding_btn_back").performClick()
+        // Navigate back via system gesture / back handler
+        androidx.test.espresso.Espresso.pressBack()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
         // Should be back on Screen 1
-        composeTestRule.onNodeWithText("Never lose track of what matters.").assertIsDisplayed()
-        composeTestRule.onNodeWithText("1 of 4").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_btn_back").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Never miss", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -280,7 +289,7 @@ class OnboardingFlowTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Smart visual capture.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Set reminders").assertIsDisplayed()
 
         // Tap skip
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
@@ -301,14 +310,22 @@ class OnboardingFlowTest {
             }
         }
 
-        // Step through to final screen
-        for (i in 0 until 4) {
+        // Step through Screens 1 to 6
+        for (i in 0 until 5) {
             composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
             composeTestRule.waitForIdle()
         }
 
+        // On Screen 6, advance to Screen 7
         composeTestRule.onNodeWithTag("onboarding_btn_get_started").assertIsDisplayed()
         composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // On Screen 7, tap Continue to complete
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
@@ -354,17 +371,164 @@ class OnboardingFlowTest {
             }
         }
 
-        // Step to final screen
-        for (i in 0 until 4) {
+        // Step to Screen 6
+        for (i in 0 until 5) {
             composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
             composeTestRule.waitForIdle()
         }
 
-        // Tap Get started rapidly
+        // Advance to Screen 7
         composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
-        composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Tap Continue rapidly on Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
         composeTestRule.waitForIdle()
 
         assertEquals(1, completeCount)
+    }
+
+    @Test
+    fun screen7_skip_completesOnboardingAsGuest() {
+        var completed = false
+        composeTestRule.setContent {
+            MemoraTheme {
+                OnboardingScreen(
+                    onComplete = { completed = true },
+                    onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
+                )
+            }
+        }
+
+        // Step through to Screen 6
+        for (i in 0 until 5) {
+            composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
+            composeTestRule.waitForIdle()
+        }
+
+        // Advance to Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Tap Skip on Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.waitForIdle()
+
+        assertTrue(completed)
+        assertTrue(preferences.hasCompletedOnboarding())
+        // User remains unauthenticated (Guest)
+        assertNull(preferences.getAuthUid())
+    }
+
+    @Test
+    fun screen7_googleSignIn_updatesAuthStateAndCompletes() {
+        var completed = false
+        composeTestRule.setContent {
+            MemoraTheme {
+                OnboardingScreen(
+                    onComplete = { completed = true },
+                    onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
+                )
+            }
+        }
+
+        // Step through to Screen 6
+        for (i in 0 until 5) {
+            composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
+            composeTestRule.waitForIdle()
+        }
+
+        // Advance to Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_get_started").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Tap Continue with Google
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
+        composeTestRule.waitForIdle()
+
+        assertTrue(completed)
+        assertTrue(preferences.hasCompletedOnboarding())
+        assertNotNull(preferences.getAuthUid())
+    }
+
+    @Test
+    fun screen6_maybeLater_navigatesToScreen7_andCompletesToHome() {
+        var completed = false
+        var addFirstMemoryCalled = false
+        composeTestRule.setContent {
+            MemoraTheme {
+                OnboardingScreen(
+                    onComplete = { completed = true },
+                    onAddFirstItem = { addFirstMemoryCalled = true },
+                    onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
+                )
+            }
+        }
+
+        // Step through to Screen 6
+        for (i in 0 until 5) {
+            composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
+            composeTestRule.waitForIdle()
+        }
+
+        // Tap "Maybe later" on Screen 6
+        composeTestRule.onNodeWithTag("onboarding_btn_maybe_later").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Verify we are now on Screen 7 ("Create your account" title displayed)
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+
+        // Tap Skip on Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.waitForIdle()
+
+        // Verify completed to Home (not addFirstMemory)
+        assertTrue(completed)
+        assertFalse(addFirstMemoryCalled)
+        assertTrue(preferences.hasCompletedOnboarding())
+    }
+
+    @Test
+    fun screen5_nextButton_requestsNotificationPermission() {
+        var notificationPermissionRequested = false
+        composeTestRule.setContent {
+            MemoraTheme {
+                OnboardingScreen(
+                    onComplete = {},
+                    onboardingPreferences = preferences,
+                    onRequestNotificationPermission = { notificationPermissionRequested = true },
+                )
+            }
+        }
+
+        // Advance through Screens 1 -> 2 -> 3 -> 4 -> 5
+        for (i in 0 until 4) {
+            composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+            composeTestRule.mainClock.advanceTimeBy(600)
+            composeTestRule.waitForIdle()
+        }
+
+        // Now on Screen 5 ("Stay on top")
+        composeTestRule.onNodeWithText("Stay on top").assertIsDisplayed()
+        assertFalse(notificationPermissionRequested)
+
+        // Tap Next on Screen 5 -> should trigger notification permission request
+        composeTestRule.onNodeWithTag("onboarding_btn_next").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        assertTrue(notificationPermissionRequested)
     }
 }

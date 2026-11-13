@@ -133,6 +133,7 @@ fun HistoryScreen(
             ?: item.activeReminder?.id
             ?: item.reminders.firstOrNull()?.id
         if (reminderId != null) {
+            app.memora.platform.logging.AppLog.recordUserAction("History Screen", "Reminder restored", "title=${item.memory.title}")
             view.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
             onRestoreReminder(reminderId)
             scope.launch {
@@ -143,6 +144,7 @@ fun HistoryScreen(
                     duration = SnackbarDuration.Short,
                 )
                 if (result == SnackbarResult.ActionPerformed) {
+                    app.memora.platform.logging.AppLog.recordUserAction("History Screen", "Undo restore clicked")
                     onUndoRestoreReminder(reminderId)
                 }
             }
@@ -173,7 +175,7 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Archived and completed date reminders",
+                text = "Archived and completed reminders",
                 style = MemoraTypography.caption,
                 color = TextCaption,
             )
@@ -212,8 +214,7 @@ fun HistoryScreen(
                     else -> 2
                 },
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(220, delayMillis = 90)) +
-                        scaleIn(initialScale = 0.98f, animationSpec = tween(220, delayMillis = 90)) togetherWith
+                    fadeIn(animationSpec = tween(140)) togetherWith
                         fadeOut(animationSpec = tween(90))
                 },
                 modifier = Modifier
@@ -237,7 +238,7 @@ fun HistoryScreen(
                         MemoraEmptyState(
                             icon = Icons.Outlined.CheckCircle,
                             message = if (searchQuery.isNotBlank()) "No matching history found for \"$searchQuery\"." else "No completed reminders in your history yet.",
-                            actionLabel = if (searchQuery.isNotBlank()) "Clear search" else "Back to home",
+                            actionLabel = if (searchQuery.isNotBlank()) "Clear search" else "Back to Home",
                             onAction = { 
                                 if (searchQuery.isNotBlank()) {
                                     onSearchQueryChange("")
@@ -382,8 +383,7 @@ fun HistoryMemoryCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .testTag(testTag)
-            .clickable(onClick = onClick),
+            .testTag(testTag),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = CardWhite,
@@ -450,7 +450,7 @@ fun HistoryMemoryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                if (!item.memory.description.isNullOrBlank()) {
+                if (!item.memory.description.isNullOrBlank() && item.memory.eventType != EventType.OTHER) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = item.memory.description,
@@ -467,7 +467,8 @@ fun HistoryMemoryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    EventTypeChip(eventType = item.memory.eventType)
+                    val customLabel = if (item.memory.eventType == EventType.OTHER) item.memory.description else null
+                    EventTypeChip(eventType = item.memory.eventType, customLabel = customLabel)
                     Text(
                         text = formattedDate,
                         style = MemoraTypography.caption,

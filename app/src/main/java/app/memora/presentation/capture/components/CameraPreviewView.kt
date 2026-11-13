@@ -12,11 +12,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -27,8 +29,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import app.memora.platform.camera.CameraFlashMode
 import androidx.compose.material.icons.outlined.PhotoLibrary
 
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,10 +58,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.exifinterface.media.ExifInterface
@@ -92,6 +103,7 @@ fun CameraPreviewView(
     onOpenGallery: (() -> Unit)? = null,
     onPackagingIdentified: ((PackagingDetectionResult) -> Unit)? = null,
     isAnalysisPaused: Boolean = false,
+    topEndContent: @Composable (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -101,7 +113,7 @@ fun CameraPreviewView(
 
     var isCapturing by remember { mutableStateOf(false) }
     var cameraBoundError by remember { mutableStateOf<Throwable?>(null) }
-    var isTorchOn by remember { mutableStateOf(false) }
+    var flashMode by remember { mutableStateOf(CameraFlashMode.AUTO) }
     var isDocumentDetected by remember { mutableStateOf(false) }
     var detectedPackaging by remember { mutableStateOf<PackagingDetectionResult?>(null) }
     var previewCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -119,7 +131,15 @@ fun CameraPreviewView(
             onPackagingDetected = { result ->
                 detectedPackaging = result
                 onPackagingIdentified?.invoke(result)
-            }
+            },
+            onLowSharpness = {
+                cameraManager?.focusCenter()
+            },
+            onLowLightChanged = { isDark ->
+                if (cameraManager?.getFlashMode() == CameraFlashMode.AUTO) {
+                    cameraManager.enableTorch(isDark)
+                }
+            },
         )
     }
 
@@ -171,7 +191,9 @@ fun CameraPreviewView(
                                         previewHeight = pH,
                                         rotationDegrees = rotation,
                                     )
-                                    DebugCaptureSaver.saveCapture(context, file, metadata)
+                                    if (AppLog.isDiagnosticsEnabled()) {
+                                        DebugCaptureSaver.saveCapture(context, file, metadata)
+                                    }
                                 }
                             }
                         } catch (c: CancellationException) {
@@ -183,6 +205,9 @@ fun CameraPreviewView(
                     onPhotoCaptured(file)
                 },
                 onFailure = { err -> 
+                    isCapturing = false
+                    analyzer.resume()
+                    runCatching { targetFile.delete() }
                     onCaptureError(err)
                 }
             )
@@ -194,15 +219,10 @@ fun CameraPreviewView(
             isDocumentDetected = false
             detectedPackaging = null
             analyzer.pause()
-            if (isTorchOn) {
-                cameraManager?.enableTorch(false)
-            }
+            cameraManager?.enableTorch(false)
         } else {
             isCapturing = false
             analyzer.resume()
-            if (isTorchOn) {
-                cameraManager?.enableTorch(true)
-            }
         }
     }
 
@@ -224,7 +244,7 @@ fun CameraPreviewView(
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 }
             }
-            delay(400) // Brief pause to let user see the green reticle lock on
+            delay(150) // Minimal pause for visual lock-on feedback
             if (isDocumentDetected && !isCapturing && !isAnalysisPaused) {
                 performCapture()
             }
@@ -280,7 +300,7 @@ fun CameraPreviewView(
 
                         setOnTouchListener { view, event ->
                             scaleGestureDetector.onTouchEvent(event)
-                            if (event.action == android.view.MotionEvent.ACTION_UP) {
+                            if (event.action == android.view.MotionEvent.ACTION_UP && !scaleGestureDetector.isInProgress && event.pointerCount <= 1) {
                                 cameraManager.focusAt(event.x, event.y, this)
                                 view.performClick()
                             }
@@ -312,7 +332,7 @@ fun CameraPreviewView(
             }
         }
 
-        // Central Document/Expiry Scanner Reticle
+        // Central OCR Geometric Anchor Frame (100% Unobstructed Viewfinder)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -324,43 +344,38 @@ fun CameraPreviewView(
                     .fillMaxWidth()
                     .aspectRatio(0.75f)
                     .onGloballyPositioned { reticleCoordinates = it }
-                    .border(reticleBorderWidth, reticleBorderColor, RoundedCornerShape(20.dp))
-                    .background(
-                        if (isDocumentDetected) Color(0x1A4CAF50) else Color.Transparent,
-                        RoundedCornerShape(20.dp)
-                    )
             )
+        }
 
-            // Scanning Guidance Badge
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (isDocumentDetected) Color(0xFF1B5E20).copy(alpha = 0.85f)
-                        else Color.Black.copy(alpha = 0.65f)
-                    )
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    imageVector = if (isDocumentDetected) Icons.Filled.CheckCircle else Icons.Filled.DocumentScanner,
-                    contentDescription = null,
-                    tint = if (isDocumentDetected) Color(0xFF81C784) else Color.White,
-                    modifier = Modifier.size(16.dp),
+        // Perimeter Scanning Guidance Badge (docked above bottom controls, zero central obstruction)
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 148.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    if (isDocumentDetected) Color(0xFF1B5E20).copy(alpha = 0.85f)
+                    else Color.Black.copy(alpha = 0.65f)
                 )
-                Text(
-                    text = when {
-                        isCapturing -> stringResource(R.string.capture_guidance_capturing)
-                        isDocumentDetected -> detectedPackaging?.guidanceMessage ?: stringResource(R.string.scanner_guidance_detected)
-                        else -> stringResource(R.string.scanner_guidance_align)
-                    },
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = if (isDocumentDetected) Icons.Filled.CheckCircle else Icons.Filled.DocumentScanner,
+                contentDescription = null,
+                tint = if (isDocumentDetected) Color(0xFF81C784) else Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = when {
+                    isCapturing -> stringResource(R.string.capture_guidance_capturing)
+                    isDocumentDetected -> detectedPackaging?.guidanceMessage ?: stringResource(R.string.scanner_guidance_detected)
+                    else -> stringResource(R.string.scanner_guidance_align)
+                },
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
 
         // Top Navigation and Action Bar
@@ -370,7 +385,7 @@ fun CameraPreviewView(
                 .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             IconButton(
                 onClick = onBack,
@@ -385,16 +400,17 @@ fun CameraPreviewView(
                 )
             }
 
-
+            topEndContent?.invoke()
         }
 
-        // Bottom Controls Bar with Gallery quick action
-        Box(
+        // Bottom Controls Bar with Gallery quick action & legal auxiliary disclaimer
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(bottom = 36.dp, top = 20.dp, start = 28.dp, end = 28.dp),
+                .padding(bottom = 28.dp, top = 16.dp, start = 24.dp, end = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -422,7 +438,7 @@ fun CameraPreviewView(
                     Spacer(modifier = Modifier.size(48.dp))
                 }
 
-                // Center: Scanner Activity Indicator
+                // Center: Manual Shutter Button / Scanner Activity Indicator
                 Box(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center,
@@ -432,30 +448,70 @@ fun CameraPreviewView(
                             color = Color.White,
                             modifier = Modifier.size(36.dp),
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .border(3.dp, Color.White, CircleShape)
+                                .semantics {
+                                    role = Role.Button
+                                    contentDescription = "Capture document"
+                                }
+                                .clickable { performCapture() }
+                                .padding(6.dp)
+                                .clip(CircleShape)
+                                .background(if (isDocumentDetected) Color(0xFF4CAF50) else Color.White)
+                                .testTag("camera_shutter_button"),
+                        )
                     }
                 }
 
-                // Right: Torch / Flash Toggle Button
+                // Right: 3-Way Flash Selector (Auto / On / Off)
                 IconButton(
                     onClick = {
-                        val next = !isTorchOn
-                        isTorchOn = next
-                        cameraManager?.enableTorch(next)
+                        val next = flashMode.next()
+                        flashMode = next
+                        cameraManager?.setFlashMode(next)
                     },
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (isTorchOn) Color(0xFFFFD54F).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.15f))
+                        .background(
+                            when (flashMode) {
+                                CameraFlashMode.ON -> Color(0xFFFFD54F).copy(alpha = 0.25f)
+                                CameraFlashMode.AUTO -> Color.White.copy(alpha = 0.15f)
+                                CameraFlashMode.OFF -> Color.White.copy(alpha = 0.08f)
+                            }
+                        )
                         .testTag("camera_torch_button"),
                 ) {
-                    Icon(
-                        imageVector = if (isTorchOn) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                        contentDescription = if (isTorchOn) stringResource(R.string.capture_torch_on) else stringResource(R.string.capture_torch_off),
-                        tint = if (isTorchOn) Color(0xFFFFD54F) else Color.White,
-                        modifier = Modifier.size(24.dp),
-                    )
+                    if (flashMode == CameraFlashMode.OFF) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_flash_off),
+                            contentDescription = stringResource(R.string.capture_flash_off),
+                            tint = Color.White.copy(alpha = 0.45f),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (flashMode == CameraFlashMode.AUTO) Icons.Filled.FlashAuto else Icons.Filled.FlashOn,
+                            contentDescription = stringResource(if (flashMode == CameraFlashMode.AUTO) R.string.capture_flash_auto else R.string.capture_flash_on),
+                            tint = if (flashMode == CameraFlashMode.ON) Color(0xFFFFD54F) else Color.White,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Auxiliary reminder aid · Always inspect physical packaging before use",
+                color = Color.White.copy(alpha = 0.65f),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

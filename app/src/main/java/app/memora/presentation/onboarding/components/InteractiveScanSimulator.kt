@@ -139,7 +139,7 @@ fun InteractiveScanSimulator(
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "Instant Optical Scan · Structured Memory Created",
+                        text = "Instant Scan · Details Detected Automatically",
                         style = MemoraTypography.caption.copy(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 11.sp,

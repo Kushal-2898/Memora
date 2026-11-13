@@ -1,54 +1,40 @@
 package app.memora.data.repository
 
+import app.memora.data.local.OnboardingPreferences
 import app.memora.domain.model.Entitlement
 import app.memora.domain.model.EntitlementStatus
 import app.memora.domain.repository.EntitlementRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 
-/**
- * Development-only implementation of EntitlementRepository.
- * Automatically grants PREMIUM access so the developer can use the app without
- * setting up Google Play Billing or a backend.
- * 
- * In the future, this will be replaced by an implementation that actually
- * verifies purchase tokens and backend state.
- */
 class DefaultEntitlementRepository(
-    private val isDebug: Boolean = app.memora.BuildConfig.DEBUG
+    private val onboardingPreferences: OnboardingPreferences? = null,
 ) : EntitlementRepository {
 
-    private val currentEntitlement = if (isDebug) {
-        Entitlement(
-            status = EntitlementStatus.PREMIUM,
-            canScan = true,
+    private fun resolveEntitlement(): Entitlement {
+        val isPro = onboardingPreferences?.isProUser() ?: false
+        return Entitlement(
+            status = if (isPro) EntitlementStatus.PREMIUM else EntitlementStatus.FREE,
+            canScan = isPro,
             canSave = true,
-            productId = "dev_premium_tier",
-            source = "development_override"
-        )
-    } else {
-        Entitlement(
-            status = EntitlementStatus.FREE,
-            canScan = true,
-            canSave = true,
-            productId = null,
-            source = "production_default"
+            productId = if (isPro) "memora_pro_tier" else null,
+            source = if (isPro) "user_entitlement_pro" else "free_tier"
         )
     }
 
-    override fun observeEntitlement(): Flow<Entitlement> {
-        return flowOf(currentEntitlement)
+    override fun observeEntitlement(): Flow<Entitlement> = flow {
+        emit(resolveEntitlement())
     }
 
     override suspend fun getEntitlement(): Entitlement {
-        return currentEntitlement
+        return resolveEntitlement()
     }
 
     override suspend fun canScan(): Boolean {
-        return currentEntitlement.canScan
+        return resolveEntitlement().canScan
     }
 
     override suspend fun canSave(): Boolean {
-        return currentEntitlement.canSave
+        return true
     }
 }

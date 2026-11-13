@@ -65,13 +65,13 @@ class HomeViewModel(
         val upcoming = mutableListOf<MemoryWithReminders>()
         val completed = mutableListOf<MemoryWithReminders>()
 
-        val filteredItems = if (query.isBlank()) {
+        val cleanQuery = query.trim().lowercase()
+        val filteredItems = if (cleanQuery.isEmpty()) {
             allItems
         } else {
-            val lowerQuery = query.lowercase()
             allItems.filter { item ->
-                item.memory.title.lowercase().contains(lowerQuery) ||
-                (item.memory.description?.lowercase()?.contains(lowerQuery) == true)
+                item.memory.title.lowercase().contains(cleanQuery) ||
+                (item.memory.description?.lowercase()?.contains(cleanQuery) == true)
             }
         }
 
@@ -146,7 +146,7 @@ class HomeViewModel(
                 ?: Result.failure(IllegalStateException("No updateMemoryUseCase provided"))
             if (result.isSuccess) {
                 val updatedMemory = getMemoryUseCase(memory.id)
-                updatedMemory?.reminders?.forEach { reminder ->
+                updatedMemory?.reminders?.filter { it.completedAt == null && it.status != app.memora.domain.model.ReminderStatus.COMPLETED }?.forEach { reminder ->
                     notificationScheduler.scheduleReminder(
                         memoryId = memory.id,
                         reminderId = reminder.id,

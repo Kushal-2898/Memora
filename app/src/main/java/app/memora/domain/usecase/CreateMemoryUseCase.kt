@@ -38,7 +38,8 @@ class CreateMemoryUseCase(
             }
         }
 
-        return memoryRepository.createMemory(memory, initialReminder)
+        val sanitizedMemory = memory.copy(title = memory.title.trim().take(120))
+        return memoryRepository.createMemory(sanitizedMemory, initialReminder)
     }
 
     suspend operator fun invoke(

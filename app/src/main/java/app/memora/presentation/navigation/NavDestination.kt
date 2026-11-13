@@ -2,6 +2,7 @@ package app.memora.presentation.navigation
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Home
@@ -15,7 +16,7 @@ import app.memora.R
 
 sealed class Screen(
     val route: String,
-    @StringRes val titleRes: Int,
+    @get:StringRes val titleRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
     val testTag: String,
@@ -26,6 +27,14 @@ sealed class Screen(
         selectedIcon = Icons.Filled.Home,
         unselectedIcon = Icons.Outlined.Home,
         testTag = "nav_tab_home",
+    )
+
+    data object Add : Screen(
+        route = "add",
+        titleRes = R.string.nav_add,
+        selectedIcon = Icons.Filled.Add,
+        unselectedIcon = Icons.Filled.Add,
+        testTag = "nav_tab_add",
     )
 
     data object Scanner : Screen(
@@ -62,7 +71,7 @@ sealed class Screen(
 
     companion object {
         val bottomNavItems: List<Screen>
-            get() = listOf(Home, Scanner, History, Settings)
+            get() = listOf(Home, Add, History)
         // Backward-compatible alias for existing references
         val Capture: Scanner get() = Scanner
     }

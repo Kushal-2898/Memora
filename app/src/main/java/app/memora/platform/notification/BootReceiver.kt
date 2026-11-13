@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Recovers and re-arms exact alarms with AlarmManager upon device reboot (BOOT_COMPLETED)
- * or application package updates (MY_PACKAGE_REPLACED).
+ * Recovers and re-arms exact alarms with AlarmManager upon device reboot (BOOT_COMPLETED),
+ * application package updates (MY_PACKAGE_REPLACED), or clock/timezone changes.
  */
 class BootReceiver : BroadcastReceiver() {
     companion object {
@@ -23,6 +23,8 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent.action
         if (action != Intent.ACTION_BOOT_COMPLETED &&
             action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            action != Intent.ACTION_TIMEZONE_CHANGED &&
+            action != Intent.ACTION_TIME_CHANGED &&
             action != "android.intent.action.QUICKBOOT_POWERON" &&
             action != "com.htc.intent.action.QUICKBOOT_POWERON"
         ) {

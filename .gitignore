@@ -45,3 +45,24 @@ deps.txt
 test-output.txt
 stage6-info.txt
 patch*.py
+logo_b64.txt
+
+# Transient visual QA crops and debug screenshots
+/band_*.png
+/crop_*.png
+/current_*.png
+/dots_*.png
+/ref_*.png
+/s5_*.png
+/s6_*.png
+/scaled_*.png
+/text_*.png
+/thumb_*.png
+/*_debug*.png
+/*_check*.png
+/trimmed_m_logo.png
+/simulated_device_banner*.png
+/seam_text_check.png
+/center_check.png
+/bottom_crop_debug.png
+/wave_bottom_debug.png

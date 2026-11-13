@@ -117,7 +117,7 @@ fun NotificationPreviewCard(
                 else if (isSnoozed)
                     "⏰ Reminder snoozed to tomorrow morning"
                 else
-                    "Organic Rolled Oats expires in 2 days",
+                    "Organic Rolled Oats • Expires in 2 days",
                 style = MemoraTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = if (isDone) StatusCompleted else PrimaryNavy,
             )
@@ -189,7 +189,7 @@ fun NotificationPreviewCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isSnoozed) "Snoozed" else "Snooze 1d",
+                        text = if (isSnoozed) "Snoozed" else "Snooze 1 day",
                         style = MemoraTypography.label.copy(color = PrimaryNavy),
                     )
                 }

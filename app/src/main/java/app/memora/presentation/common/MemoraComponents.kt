@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -163,6 +164,7 @@ fun StatusBadge(
 fun EventTypeChip(
     eventType: EventType,
     modifier: Modifier = Modifier,
+    customLabel: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -173,7 +175,7 @@ fun EventTypeChip(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = eventType.toDisplayName(),
+            text = customLabel?.takeIf { it.isNotBlank() } ?: eventType.toDisplayName(),
             color = TextCaption,
             style = MemoraTypography.label.copy(fontSize = 11.sp),
             fontWeight = FontWeight.Medium,
@@ -214,7 +216,7 @@ fun PrimaryButton(
         },
         interactionSource = interactionSource,
         modifier = modifier
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale },
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
@@ -429,7 +431,7 @@ fun MemoraMemoryCard(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                if (!item.memory.description.isNullOrBlank()) {
+                if (!item.memory.description.isNullOrBlank() && item.memory.eventType != EventType.OTHER) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = item.memory.description,
@@ -446,7 +448,8 @@ fun MemoraMemoryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    EventTypeChip(eventType = item.memory.eventType)
+                    val customLabel = if (item.memory.eventType == EventType.OTHER) item.memory.description else null
+                    EventTypeChip(eventType = item.memory.eventType, customLabel = customLabel)
                     Text(
                         text = formattedDate,
                         style = MemoraTypography.caption,
@@ -503,8 +506,8 @@ fun MemoraMemoryCard(
 fun MemoraEmptyState(
     icon: ImageVector,
     message: String,
-    actionLabel: String,
-    onAction: () -> Unit,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     testTag: String = "empty_state",
 ) {
@@ -541,11 +544,12 @@ fun MemoraEmptyState(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        PrimaryButton(
-            text = actionLabel,
-            onClick = onAction,
-        )
+        if (!actionLabel.isNullOrBlank() && onAction != null) {
+            Spacer(modifier = Modifier.height(24.dp))
+            PrimaryButton(
+                text = actionLabel,
+                onClick = onAction,
+            )
+        }
     }
 }

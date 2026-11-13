@@ -68,6 +68,9 @@ interface AppContainer {
     val memoryRepository: MemoryRepository
     val reminderRepository: ReminderRepository
     val entitlementRepository: EntitlementRepository
+    val authRepository: app.memora.domain.repository.AuthRepository
+    val googleAuthClient: app.memora.platform.auth.GoogleAuthClient
+    val firestoreSyncManager: app.memora.data.sync.FirestoreSyncManager
     val billingGateway: BillingGateway
     val crashReporter: app.memora.domain.logging.CrashReporter
     val analyticsLogger: app.memora.domain.logging.AnalyticsLogger
@@ -138,7 +141,30 @@ class DefaultAppContainer(
     }
 
     override val entitlementRepository: EntitlementRepository by lazy {
-        app.memora.data.repository.DefaultEntitlementRepository()
+        app.memora.data.repository.DefaultEntitlementRepository(onboardingPreferences)
+    }
+
+    override val authRepository: app.memora.domain.repository.AuthRepository by lazy {
+        app.memora.data.repository.DefaultAuthRepository(
+            onboardingPreferences = onboardingPreferences,
+            onSignOutCleanup = {
+                database.clearAllTables()
+            },
+        )
+    }
+
+    override val googleAuthClient: app.memora.platform.auth.GoogleAuthClient by lazy {
+        app.memora.platform.auth.GoogleAuthClient(context)
+    }
+
+    override val firestoreSyncManager: app.memora.data.sync.FirestoreSyncManager by lazy {
+        app.memora.data.sync.FirestoreSyncManager(
+            memoryDao = database.memoryDao(),
+            reminderDao = database.reminderDao(),
+            authRepository = authRepository,
+            notificationScheduler = notificationScheduler,
+            scanEvidenceDao = database.scanEvidenceDao(),
+        )
     }
 
     override val billingGateway: BillingGateway by lazy {
@@ -202,7 +228,9 @@ class DefaultAppContainer(
     }
 
     override val deleteMemoryUseCase: DeleteMemoryUseCase by lazy {
-        DeleteMemoryUseCase(memoryRepository)
+        DeleteMemoryUseCase(memoryRepository) { id ->
+            firestoreSyncManager.deleteRemoteMemory(id)
+        }
     }
 
     override val deleteReminderUseCase: DeleteReminderUseCase by lazy {
@@ -240,19 +268,23 @@ class DefaultAppContainer(
     }
 
     override val extractLocallyUseCase: ExtractLocallyUseCase by lazy {
+        val barcodePrefs = context?.applicationContext?.getSharedPreferences(
+            "memora_barcode_catalog",
+            Context.MODE_PRIVATE
+        )
         ExtractLocallyUseCase(
             textExtractor = textExtractor,
             barcodeExtractor = barcodeExtractor,
             deterministicExtractor = DeterministicMemoryExtractor(clockProvider),
+            offlineCatalog = app.memora.data.local.OfflineProductCatalog(barcodePrefs),
         )
     }
 
     override val refineWithGeminiUseCase: RefineWithGeminiUseCase by lazy {
         RefineWithGeminiUseCase(
             geminiExtractor = if (context != null) {
-                app.memora.domain.extraction.GeminiMemoryExtractor(
-                    context.applicationContext,
-                    app.memora.BuildConfig.GEMINI_API_KEY
+                app.memora.domain.extraction.CloudGeminiMemoryExtractor(
+                    context.applicationContext
                 )
             } else {
                 DeterministicMemoryExtractor(clockProvider)
@@ -286,28 +318,16 @@ class DefaultAppContainer(
         }
     }
 
-    val rapidOcrExtractor: TextExtractor by lazy {
-        if (context != null) {
-            app.memora.platform.ocr.RapidOcrExtractor(context.applicationContext)
-        } else {
-            Stage1TextExtractor()
-        }
-    }
-
     override val selectableTextExtractor: app.memora.platform.ocr.SelectableTextExtractor by lazy {
         app.memora.platform.ocr.SelectableTextExtractor(
             mlKitExtractor = mlKitTextExtractor,
-            rapidOcrExtractor = rapidOcrExtractor,
-            activeEngine = app.memora.platform.ocr.ActiveOcrEngine.RAPID_OCR,
+            rapidOcrExtractor = mlKitTextExtractor,
+            activeEngine = app.memora.platform.ocr.ActiveOcrEngine.ML_KIT,
         )
     }
 
     override val textExtractor: TextExtractor by lazy {
-        if (context != null) {
-            selectableTextExtractor
-        } else {
-            Stage1TextExtractor()
-        }
+        mlKitTextExtractor
     }
 
     override val barcodeExtractor: app.memora.platform.ocr.BarcodeExtractor by lazy {
@@ -323,9 +343,8 @@ class DefaultAppContainer(
     override val memoryExtractor: MemoryExtractor by lazy {
         if (context != null) {
             app.memora.domain.extraction.CompositeMemoryExtractor(
-                primary = app.memora.domain.extraction.GeminiMemoryExtractor(
-                    context.applicationContext, 
-                    app.memora.BuildConfig.GEMINI_API_KEY
+                primary = app.memora.domain.extraction.CloudGeminiMemoryExtractor(
+                    context.applicationContext
                 ),
                 fallback = DeterministicMemoryExtractor(clockProvider)
             )
@@ -372,10 +391,46 @@ class DefaultAppContainer(
             object : app.memora.data.local.OnboardingPreferences {
                 private var completed = true
                 private var categories = app.memora.data.local.DefaultOnboardingPreferences.defaultCategories
+                private var reminderTime = java.time.LocalTime.of(9, 0)
+                private var scanCount = 0
+                private var isPro = false
                 override fun hasCompletedOnboarding(): Boolean = completed
                 override fun setOnboardingCompleted(completed: Boolean) { this.completed = completed }
                 override fun getSelectedCategories(): Set<String> = categories
                 override fun setSelectedCategories(categories: Set<String>) { this.categories = categories }
+                override fun getDefaultReminderTime(): java.time.LocalTime = reminderTime
+                override fun setDefaultReminderTime(time: java.time.LocalTime) { this.reminderTime = time }
+                override fun getMonthlyScanCount(): Int = scanCount
+                override fun incrementMonthlyScanCount(): Int = ++scanCount
+                override fun getRemainingMonthlyScans(limit: Int): Int = (limit - scanCount).coerceAtLeast(0)
+                override fun isProUser(): Boolean = isPro
+                override fun setProUser(isPro: Boolean) { this.isPro = isPro }
+                private var customCategories = mutableSetOf<String>()
+                override fun getCustomCategories(): Set<String> = customCategories
+                override fun addCustomCategory(category: String) { customCategories.add(category) }
+                private var authUid: String? = null
+                private var authEmail: String? = null
+                private var authName: String? = null
+                private var authPhoto: String? = null
+                override fun getAuthUid(): String? = authUid
+                override fun getAuthEmail(): String? = authEmail
+                override fun getAuthDisplayName(): String? = authName
+                override fun getAuthPhotoUrl(): String? = authPhoto
+                override fun setAuth(uid: String, email: String?, displayName: String?, photoUrl: String?) {
+                    this.authUid = uid
+                    this.authEmail = email
+                    this.authName = displayName
+                    this.authPhoto = photoUrl
+                }
+                override fun clearAuth() {
+                    this.authUid = null
+                    this.authEmail = null
+                    this.authName = null
+                    this.authPhoto = null
+                }
+                private var promptedNotification = false
+                override fun hasPromptedNotificationPermission(): Boolean = promptedNotification
+                override fun setPromptedNotificationPermission(prompted: Boolean) { this.promptedNotification = prompted }
             }
         }
     }
@@ -413,5 +468,7 @@ class InMemoryImageStorage : ImageStorage {
 
     override fun deleteImage(uriString: String): Boolean = true
 
-
+    override suspend fun compressForEvidence(uriString: String): ByteArray? {
+        return if (uriString.isNotBlank()) "compressed:$uriString".toByteArray(Charsets.UTF_8) else null
+    }
 }

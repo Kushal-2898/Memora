@@ -39,6 +39,28 @@ class PackagingFeatureDetectorTest {
     }
 
     @Test
+    fun classifyPackaging_keyboardKeysWithCrimp_returnsUnknown() {
+        val result = PackagingFeatureDetector.classifyPackaging(
+            rawText = "esc f1 f2 tab caps lock shift ctrl alt enter backspace",
+            isCrimpPresent = true,
+        )
+
+        assertEquals(PackagingType.UNKNOWN, result.packagingType)
+        assertEquals(DateLocation.UNKNOWN, result.dateLocation)
+    }
+
+    @Test
+    fun classifyPackaging_userScanKeyboardLog_returnsUnknown() {
+        val result = PackagingFeatureDetector.classifyPackaging(
+            rawText = "F10\nF12\n0 Turbo A\nPrtSc\n+\n||\nInser",
+            isCrimpPresent = true,
+        )
+
+        assertEquals(PackagingType.UNKNOWN, result.packagingType)
+        assertEquals(DateLocation.UNKNOWN, result.dateLocation)
+    }
+
+    @Test
     fun classifyPackaging_tubeKeywordsWithoutCrimp_returnsTube() {
         val result = PackagingFeatureDetector.classifyPackaging(
             rawText = "Antiseptic Skin Cream 50g",

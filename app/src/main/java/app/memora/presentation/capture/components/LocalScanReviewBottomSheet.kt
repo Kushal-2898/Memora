@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,6 +78,8 @@ fun LocalScanReviewBottomSheet(
     onEnterManually: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    isProUser: Boolean = true,
+    onRequestProUpgrade: (() -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { sheetValue ->
@@ -176,53 +179,17 @@ fun LocalScanReviewBottomSheet(
                         text = localResult.title ?: "Detected Document",
                         style = MemoraTypography.title.copy(fontSize = 18.sp),
                         color = PrimaryNavy,
-                        modifier = Modifier.padding(top = 2.dp, bottom = if (localResult.packagingType != app.memora.domain.extraction.PackagingType.UNKNOWN) 6.dp else 12.dp),
+                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
                     )
-
-                    if (localResult.packagingType != app.memora.domain.extraction.PackagingType.UNKNOWN) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AccentIndigo.copy(alpha = 0.08f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                text = "PACKAGING",
-                                style = MemoraTypography.label.copy(fontSize = 10.sp),
-                                color = AccentIndigo,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                text = "${localResult.packagingType.displayName} · ${localResult.dateLocation.displayName}",
-                                style = MemoraTypography.caption.copy(fontWeight = FontWeight.Medium),
-                                color = PrimaryNavy,
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                    }
 
                     // Detected Date or Ambiguity
                     if (localResult.selectedEventDate != null && !localResult.isAmbiguous) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = (localResult.dateType ?: "DETECTED DATE").uppercase(),
-                                style = MemoraTypography.label.copy(fontSize = 11.sp),
-                                color = TextCaption,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            ConfidenceChip(
-                                confidence = localResult.confidence,
-                                isAmbiguous = false,
-                                showPercentage = true,
-                            )
-                        }
+                        Text(
+                            text = (localResult.dateType ?: "DETECTED DATE").uppercase(),
+                            style = MemoraTypography.label.copy(fontSize = 11.sp),
+                            color = TextCaption,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -283,10 +250,6 @@ fun LocalScanReviewBottomSheet(
                                             color = Color(0xFFE65100),
                                         )
                                     }
-                                    ConfidenceChip(
-                                        confidence = localResult.confidence,
-                                        isAmbiguous = true,
-                                    )
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
@@ -309,22 +272,12 @@ fun LocalScanReviewBottomSheet(
                         Spacer(modifier = Modifier.height(12.dp))
                     } else {
                         // No dates detected
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "DETECTED DATE",
-                                style = MemoraTypography.label.copy(fontSize = 11.sp),
-                                color = TextCaption,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            ConfidenceChip(
-                                confidence = 0f,
-                                isAmbiguous = false,
-                            )
-                        }
+                        Text(
+                            text = "DETECTED DATE",
+                            style = MemoraTypography.label.copy(fontSize = 11.sp),
+                            color = TextCaption,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -341,9 +294,9 @@ fun LocalScanReviewBottomSheet(
                         }
                     }
 
-                    // Structured Fields (if any) or Marking Style
-                    val hasFields = localResult.fields.isNotEmpty() || localResult.markingStyle != app.memora.domain.extraction.MarkingStyle.UNKNOWN
-                    if (hasFields) {
+                    // Structured Fields (if any)
+                    val filteredFields = localResult.fields.filterKeys { it != "Detected Title" }
+                    if (filteredFields.isNotEmpty()) {
                         Text(
                             text = "EXTRACTED DETAILS",
                             style = MemoraTypography.label.copy(fontSize = 11.sp),
@@ -351,26 +304,7 @@ fun LocalScanReviewBottomSheet(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
-                        if (localResult.markingStyle != app.memora.domain.extraction.MarkingStyle.UNKNOWN) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = "Marking Technique",
-                                    style = MemoraTypography.caption,
-                                    color = TextCaption,
-                                )
-                                Text(
-                                    text = localResult.markingStyle.displayName,
-                                    style = MemoraTypography.caption.copy(fontWeight = FontWeight.Medium),
-                                    color = PrimaryNavy,
-                                )
-                            }
-                        }
-                        localResult.fields.filterKeys { it != "Detected Title" }.forEach { (key, value) ->
+                        filteredFields.forEach { (key, value) ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -393,7 +327,33 @@ fun LocalScanReviewBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Auxiliary reminder aid legal safety notice
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF9F6F0))
+                    .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = TextCaption,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "Notice: Memora is an auxiliary reminder aid. Always physically verify packaging & product condition before use.",
+                    style = MemoraTypography.caption.copy(fontSize = 11.sp, lineHeight = 15.sp),
+                    color = TextCaption,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Action Buttons
             PrimaryButton(
@@ -408,9 +368,17 @@ fun LocalScanReviewBottomSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             SecondaryButton(
-                text = "✨ Analyze with AI",
-                icon = androidx.compose.material.icons.Icons.Filled.AutoAwesome,
-                onClick = onConfirm,
+                text = if (isProUser) "✨ Analyze with AI" else "🔒 Analyze with AI (Pro)",
+                icon = Icons.Filled.AutoAwesome,
+                onClick = {
+                    if (isProUser) {
+                        onConfirm()
+                    } else if (onRequestProUpgrade != null) {
+                        onRequestProUpgrade()
+                    } else {
+                        onConfirm()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("local_scan_confirm_ai_button"),

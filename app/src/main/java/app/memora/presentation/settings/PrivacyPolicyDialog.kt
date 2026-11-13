@@ -96,7 +96,7 @@ fun PrivacyPolicyDialog(
                             color = PrimaryNavy,
                         )
                         Text(
-                            text = "DPDP Act (2023) Compliant On-Device Architecture",
+                            text = "Hybrid On-Device & AI Architecture",
                             style = MemoraTypography.caption.copy(fontSize = 11.sp),
                             color = Color(0xFF0D9488),
                             fontWeight = FontWeight.SemiBold,
@@ -117,32 +117,32 @@ fun PrivacyPolicyDialog(
                 ) {
                     PolicySectionItem(
                         number = "1",
-                        title = "Data Minimisation & Zero PII (Sec 6)",
-                        content = "Memora collects zero personal identifiers. No user accounts, passwords, email addresses, phone numbers, or advertising identifiers are required or collected.",
+                        title = "Local-First Architecture & Optional Accounts",
+                        content = "• Guest Mode (Default): Memora operates 100% offline. Zero personal identifiers, passwords, phone numbers, or advertising IDs are collected.\n• Connected Account (Google): If you choose to sign in, we access only your basic Google profile (display name, email address, avatar) solely to verify your identity and manage optional cloud synchronization. We never sell, rent, or share your data with advertisers.",
                     )
 
                     PolicySectionItem(
                         number = "2",
-                        title = "100% On-Device Processing (Sec 8 & 16)",
-                        content = "All optical character recognition (OCR) and document date parsing execute strictly offline using on-device neural processing (RapidOCR & ML Kit). No photos or document contents are ever transmitted to any remote cloud server in standard operation.",
+                        title = "On-Device OCR & Intelligent AI Processing",
+                        content = "Primary optical character recognition (OCR) and date extraction run locally on your device using ML Kit, with optional Cloud Gemini AI refinement invoked only when explicitly confirmed.",
                     )
 
                     PolicySectionItem(
                         number = "3",
-                        title = "Local Encrypted Storage (Sec 8)",
-                        content = "Your captured memories and reminder dates are saved exclusively in your phone's private internal application sandbox (Room SQLite database). No third-party or developer cloud backups exist.",
+                        title = "Storage & Cloud Sync",
+                        content = "• Local Storage: By default, your captured memories and reminder dates are saved exclusively in your device's secure private sandbox.\n• Cloud Sync: When signed into a Google Account, encrypted metadata may be synchronized to our secure cloud database under your unique user ID.",
                     )
 
                     PolicySectionItem(
                         number = "4",
-                        title = "Optional Cloud AI Transparency",
-                        content = "If cloud AI refinement is enabled via API key, it is invoked ONLY upon explicit, manual user tap on the review screen. It is never triggered silently in the background.",
+                        title = "Auxiliary Aid & Limitation of Liability",
+                        content = "Memora is an auxiliary personal reminder aid. Users have the sole responsibility to physically inspect all food, medicine, and perishable goods for condition and safety before consumption. Governed by the laws of India.",
                     )
 
                     PolicySectionItem(
                         number = "5",
-                        title = "Data Principal Rights (Sec 11–14)",
-                        content = "As a Data Principal under India's DPDP Act, you have absolute rights to:\n• Right to Access: Inspect all stored data directly in the app.\n• Right to Correction: Edit any memory, title, or date at any time.\n• Right to Erasure: Permanently delete individual memories or wipe all app data with a single tap in Settings.\n• Right to Grievance Redressal: Direct contact channel with our Data Protection Officer.",
+                        title = "Your Data Rights & Account Deletion",
+                        content = "Under the DPDP Act 2023 and GDPR, you have the right to:\n• Right to Access: Inspect all stored data directly in the app.\n• Right to Correction: Edit any memory, title, or date at any time.\n• Right to Erasure & Deletion: Permanently delete individual memories, wipe all app data, or delete your linked cloud account and associated records directly from Settings.\n• Right to Grievance Redressal: Direct contact channel with our Data Protection Officer.",
                     )
 
                     PolicySectionItem(

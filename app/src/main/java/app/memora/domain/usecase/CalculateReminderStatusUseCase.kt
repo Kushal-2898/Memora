@@ -17,10 +17,10 @@ import java.time.ZoneId
  * The event date determines when the item is DUE_TODAY or OVERDUE.
  *
  * 1. If completedAt != null -> COMPLETED (remains completed permanently)
- * 2. Else if today > eventDate -> OVERDUE
- * 3. Else if today == eventDate -> DUE_TODAY
- * 4. Else if today >= reminderStartDate -> REMINDER_ACTIVE
- * 5. Else -> UPCOMING (today < reminderStartDate)
+ * 2. Else if today < reminderStartDate -> UPCOMING (also covers snoozed overdue/due items)
+ * 3. Else if today > eventDate -> OVERDUE
+ * 4. Else if today == eventDate -> DUE_TODAY
+ * 5. Else -> REMINDER_ACTIVE
  *
  * Evaluated relative to today's date in the memory's explicit timezone.
  */
@@ -42,10 +42,11 @@ class CalculateReminderStatusUseCase(
         val today = clockProvider.today(zoneId)
 
         return when {
+            // Snooze is the only way start > eventDate, so it must win over OVERDUE/DUE_TODAY.
+            today.isBefore(reminderStartDate) -> ReminderStatus.UPCOMING
             today.isAfter(eventDate) -> ReminderStatus.OVERDUE
             today.isEqual(eventDate) -> ReminderStatus.DUE_TODAY
-            !today.isBefore(reminderStartDate) -> ReminderStatus.REMINDER_ACTIVE
-            else -> ReminderStatus.UPCOMING
+            else -> ReminderStatus.REMINDER_ACTIVE
         }
     }
 

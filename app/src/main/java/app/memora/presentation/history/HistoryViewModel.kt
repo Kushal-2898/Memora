@@ -47,13 +47,13 @@ class HistoryViewModel(
     ) { allMemories, query ->
         val completed = allMemories.filter { it.effectiveStatus == ReminderStatus.COMPLETED }
         
-        val filtered = if (query.isBlank()) {
+        val cleanQuery = query.trim().lowercase()
+        val filtered = if (cleanQuery.isEmpty()) {
             completed
         } else {
-            val lowerQuery = query.lowercase()
             completed.filter { item ->
-                item.memory.title.lowercase().contains(lowerQuery) ||
-                (item.memory.description?.lowercase()?.contains(lowerQuery) == true)
+                item.memory.title.lowercase().contains(cleanQuery) ||
+                (item.memory.description?.lowercase()?.contains(cleanQuery) == true)
             }
         }
         
@@ -64,7 +64,7 @@ class HistoryViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = HistoryUiState(isLoading = true)
+        initialValue = HistoryUiState(isLoading = false)
     )
 
     fun restoreReminder(reminderId: String) {

@@ -65,6 +65,9 @@ class DefaultReminderRepository(
         runCatching {
             val existing = reminderDao.getById(id)
                 ?: throw MemoraError.NotFound("Reminder not found for completion: $id")
+            if (existing.statusCode == ReminderStatus.COMPLETED.name) {
+                return@runCatching
+            }
             val updated = existing.copy(
                 statusCode = ReminderStatus.COMPLETED.name,
                 completedAtEpochMs = completedAt.toEpochMilli(),

@@ -368,8 +368,10 @@ object AppLog {
     private val logBuffer = ArrayDeque<String>(MAX_LOG_ENTRIES)
     private val bufferLock = Any()
 
-    private val uiActionHistory = ArrayDeque<UiActionRecord>(20)
-    private val lifecycleEvents = ArrayDeque<String>(20)
+    private const val MAX_UI_ACTIONS = 100
+    private const val MAX_LIFECYCLE_EVENTS = 50
+    private val uiActionHistory = ArrayDeque<UiActionRecord>(MAX_UI_ACTIONS)
+    private val lifecycleEvents = ArrayDeque<String>(MAX_LIFECYCLE_EVENTS)
     private val activeJobs = ConcurrentHashMap<Long, ExtractionJobRecord>()
     private val jobHistory = ArrayDeque<ExtractionJobRecord>(10)
 
@@ -675,7 +677,7 @@ object AppLog {
         return try {
             val allStacks = Thread.getAllStackTraces()
             val mainThread = allStacks.keys.firstOrNull {
-                it.name == "main" || runCatching { it.id == Looper.getMainLooper().thread.id }.getOrDefault(false)
+                it.name == "main" || runCatching { it == Looper.getMainLooper().thread }.getOrDefault(false)
             }
             val mainStack = mainThread?.let { allStacks[it] }?.take(MAX_STACK_FRAMES_MAIN)?.map { ste ->
                 sanitize("${ste.className}.${ste.methodName}(${ste.fileName}:${ste.lineNumber})")
@@ -792,7 +794,7 @@ object AppLog {
         val cleanAction = sanitize(action)
         val record = UiActionRecord(eventId = eventId, action = cleanAction)
         synchronized(bufferLock) {
-            if (uiActionHistory.size >= 20) uiActionHistory.removeFirst()
+            if (uiActionHistory.size >= MAX_UI_ACTIONS) uiActionHistory.removeFirst()
             uiActionHistory.addLast(record)
         }
         i("USER_ACTION", "[UI ACTION] $cleanAction")
@@ -847,14 +849,20 @@ object AppLog {
 
     // Screen and Lifecycle tracking
     fun recordScreen(screenName: String) {
+        val prev = currentScreen
         currentScreen = sanitize(screenName)
+        if (prev != currentScreen && prev != "AppStart") {
+            recordUserAction("Navigation", "Screen transitioned to $currentScreen", "from=$prev")
+        } else if (prev == "AppStart") {
+            recordUserAction("Navigation", "Initial Screen: $currentScreen")
+        }
         i("LIFECYCLE", "Screen navigated: $currentScreen")
     }
 
     fun recordActivityLifecycle(activityName: String, stage: String) {
         val entry = "$activityName: $stage"
         synchronized(bufferLock) {
-            if (lifecycleEvents.size >= 20) lifecycleEvents.removeFirst()
+            if (lifecycleEvents.size >= MAX_LIFECYCLE_EVENTS) lifecycleEvents.removeFirst()
             lifecycleEvents.addLast(entry)
         }
         if (stage == "RESUMED") isAppForeground = true
@@ -1625,6 +1633,19 @@ object AppLog {
                     uiActionHistory.forEach { action ->
                         val trans = if (!action.stateTransition.isNullOrBlank()) " -> [State: ${action.stateTransition} (${action.result})]" else ""
                         sb.appendLine("  [#${action.eventId}] ${action.timestamp} | ${action.action}$trans")
+                    }
+                }
+            }
+            sb.appendLine()
+
+            // SECTION 10: RECENT OPERATIONAL LOGS
+            sb.appendLine("--- SECTION 10: RECENT OPERATIONAL LOGS ---")
+            synchronized(bufferLock) {
+                if (logBuffer.isEmpty()) {
+                    sb.appendLine("No log entries recorded.")
+                } else {
+                    logBuffer.toList().takeLast(30).forEach { line ->
+                        sb.appendLine(line)
                     }
                 }
             }

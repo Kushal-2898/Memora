@@ -21,14 +21,14 @@
 | **Section 12: Right to Correction & Erasure** | Principal has right to correction, completion, updating, and erasure of data. | In-app editing sheet allows modifying titles, categories, and dates. "Erase All Data" button permanently purges all tables and files. | ✅ **COMPLIANT** |
 | **Section 13: Right of Grievance Redressal** | Readily available grievance redressal mechanism. | Dedicated grievance contact (`privacy@memora.app`) surfaced in Privacy Policy dialog and documentation. | ✅ **COMPLIANT** |
 | **Section 14: Right to Nominate** | Right to nominate an individual to exercise rights upon death or incapacity. | Acknowledged in Privacy Policy Charter. | ✅ **COMPLIANT** |
-| **Section 16: Cross-Border Data Transfer** | Personal data transfer outside India subject to Government restrictions. | Standard operation executes 100% on-device (RapidOCR & ML Kit). Zero cross-border data transfer. | ✅ **COMPLIANT** |
+| **Section 16: Cross-Border Data Transfer** | Personal data transfer outside India subject to Government restrictions. | Standard operation executes 100% on-device (Google ML Kit). Zero cross-border data transfer. | ✅ **COMPLIANT** |
 
 ---
 
 ## 2. Technical Safeguards & Invariants
 
 1. **Local-First Processing Invariant:**  
-   OCR text extraction and date candidate evaluation execute entirely on the device processor (`RapidOcrExtractor.kt`, `MlKitTextExtractor.kt`, `DeterministicMemoryExtractor.kt`).
+   OCR text extraction and date candidate evaluation execute entirely on the device processor (`MlKitTextExtractor.kt`, `DeterministicMemoryExtractor.kt`).
 2. **Double-Consent AI Invariant:**  
    Cloud AI is never invoked in background processes. If configured, it requires explicit confirmation via `LocalScanReviewBottomSheet.kt` ("Refine with AI").
 3. **Cascading Deletion Contract:**  

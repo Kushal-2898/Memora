@@ -67,7 +67,23 @@ class CaptureViewModel(
     private val analyticsLogger: app.memora.domain.logging.AnalyticsLogger,
     private val extractCapturedImageUseCase: ExtractCapturedImageUseCase? = null,
     private val canScanUseCase: app.memora.domain.usecase.CanScanUseCase? = null,
+    private val onboardingPreferences: app.memora.data.local.OnboardingPreferences? = null,
+    private val scanEvidenceDao: app.memora.data.local.ScanEvidenceDao? = null,
+    private val onPushScanEvidence: (suspend (app.memora.data.local.ScanEvidenceEntity) -> Unit)? = null,
 ) : ViewModel() {
+
+    val defaultReminderTime: java.time.LocalTime
+        get() = onboardingPreferences?.getDefaultReminderTime() ?: java.time.LocalTime.of(9, 0)
+
+    val isProUser: Boolean
+        get() = onboardingPreferences?.isProUser() ?: false
+
+    val remainingScans: Int
+        get() = Int.MAX_VALUE
+
+    suspend fun canUseAiScan(): Boolean = canScanUseCase?.invoke() ?: (onboardingPreferences?.isProUser() ?: true)
+
+    suspend fun canScan(): Boolean = true
 
     // Backward-compatible secondary constructor for existing callers/tests
     constructor(
@@ -123,6 +139,8 @@ class CaptureViewModel(
 
     var lastPackagingDetection: PackagingDetectionResult? = null
         private set
+    private var lastDetectedBarcode: String? = null
+    private var lastLocalFields: Map<String, String> = emptyMap()
 
     init {
         viewModelScope.launch {
@@ -171,9 +189,17 @@ class CaptureViewModel(
         }
 
     /**
-     * Activates the automatic camera scanner.
+     * Activates the automatic camera scanner when idle or waiting for permission.
+     * Does not overwrite an active shared-image import or extraction session.
      */
     fun startScanner(hasPermission: Boolean) {
+        val current = _uiState.value
+        if (current !is CaptureUiState.Idle &&
+            current !is CaptureUiState.PermissionRequired &&
+            current !is CaptureUiState.CameraActive
+        ) {
+            return
+        }
         val action = app.memora.platform.logging.AppLog.recordUserAction("Start Scanner")
         if (hasPermission) {
             app.memora.platform.logging.AppLog.recordStateTransition(action, "CaptureUiState: CameraActive")
@@ -240,11 +266,11 @@ class CaptureViewModel(
         val actionLabel = if (source == CaptureSource.GALLERY) "Choose Image clicked" else "Import Screenshot clicked"
         val action = app.memora.platform.logging.AppLog.recordUserAction(actionLabel)
         val previousState = _uiState.value
-        val oldImage = (previousState as? CaptureUiState.Preview)?.capturedImage
+        val oldImage = activeTemporaryImage
 
         if (uriString.isNullOrBlank()) {
             app.memora.platform.logging.AppLog.recordStateTransition(action, "Picker dismissed (no selection)")
-            if (previousState !is CaptureUiState.Preview && previousState !is CaptureUiState.Confirmed) {
+            if (oldImage == null && previousState !is CaptureUiState.CameraActive && previousState !is CaptureUiState.PermissionRequired) {
                 _uiState.value = CaptureUiState.Idle
             }
             return
@@ -285,14 +311,20 @@ class CaptureViewModel(
      * Handles camera hardware or capture failure.
      */
     fun onCaptureError(error: Throwable) {
-        crashReporter.recordException(error)
+        val isTimeout = error is MemoraError.Capture.Timeout
+        if (!isTimeout) {
+            crashReporter.recordException(error)
+        }
         val userMessage = when (error) {
             is MemoraError.Capture -> error.message
             else -> error.message ?: "Camera capture failed."
         }
+        val currentState = _uiState.value
         _uiState.value = CaptureUiState.Error(
             message = userMessage,
-            returnState = CaptureUiState.Idle,
+            returnState = if (isTimeout || currentState is CaptureUiState.CameraActive) CaptureUiState.CameraActive else CaptureUiState.Idle,
+            canRetry = true,
+            canEnterManually = true,
         )
     }
 
@@ -342,7 +374,7 @@ class CaptureViewModel(
             AppLog.recordStateTransition(action, "CaptureUiState: Extracting")
             _uiState.value = CaptureUiState.Extracting(image)
             try {
-                val outputResult = kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                val outputResult = kotlinx.coroutines.withTimeoutOrNull(15_000L) {
                     extractLocallyUseCase(
                         image = image,
                         scanId = scanId,
@@ -370,6 +402,8 @@ class CaptureViewModel(
                 outputResult.fold(
                     onSuccess = { output ->
                         if (currentScanId != scanId) return@fold
+                        lastDetectedBarcode = output.localResult.detectedBarcode
+                        lastLocalFields = output.localResult.fields
                         AppLog.endExtractionJob(extractionJobId, outcome = "SUCCESS")
                         AppLog.recordStateTransition(action, "CaptureUiState: LocalExtractionReady", result = "SUCCESS")
                         _uiState.value = CaptureUiState.LocalExtractionReady(
@@ -481,9 +515,9 @@ class CaptureViewModel(
 
         val job = viewModelScope.launch {
             try {
-                val canUseCloud = canScanUseCase?.invoke() ?: true
+                val canUseCloud = canUseAiScan()
                 if (!canUseCloud) {
-                    AppLog.recordUserAction("Capture Screen", "Cloud quota reached: fallback to local scan")
+                    AppLog.recordUserAction("Capture Screen", "AI scan locked (Pro required): fallback to local scan")
                     AppLog.endExtractionJob(extractionJobId, outcome = "FALLBACK_QUOTA")
                     isGeminiRunning = false
                     val fallbackCandidate = app.memora.domain.extraction.ExtractedMemoryCandidate(
@@ -606,9 +640,8 @@ class CaptureViewModel(
      * User requested retaking (camera) or replacing (picker) the image.
      */
     fun retakeOrReplaceImage(onLaunchPicker: ((CaptureSource) -> Unit)? = null) {
-        val currentState = _uiState.value
-        if (currentState is CaptureUiState.Preview) {
-            val previousImage = currentState.capturedImage
+        val previousImage = activeTemporaryImage
+        if (previousImage != null) {
             val action = AppLog.recordUserAction("Capture Screen", "Retake or Replace Image clicked", "source=${previousImage.source}")
             when (previousImage.source) {
                 CaptureSource.CAMERA -> {
@@ -644,10 +677,13 @@ class CaptureViewModel(
      */
     fun cancelCapture() {
         val action = AppLog.recordUserAction("Capture Screen", "Cancel Capture clicked")
-        val currentState = _uiState.value
-        if (currentState is CaptureUiState.Preview) {
-            imageStorage.deleteImage(currentState.capturedImage.uri)
+        inFlightExtractionJob?.cancel()
+        inFlightExtractionJob = null
+        val uriToDelete = activeTemporaryImage?.uri ?: lastCapturedImageUri
+        if (!uriToDelete.isNullOrBlank()) {
+            imageStorage.deleteImage(uriToDelete)
         }
+        lastCapturedImageUri = null
         AppLog.recordStateTransition(action, "CaptureUiState: Idle")
         _uiState.value = CaptureUiState.Idle
     }
@@ -695,11 +731,13 @@ class CaptureViewModel(
         eventDate: LocalDate,
         remindDaysBefore: Int,
         timeZoneId: String = ZoneId.systemDefault().id,
+        reminderTime: java.time.LocalTime? = null,
     ): Job {
         if (isSaving && inFlightSaveJob?.isActive == true) {
             return inFlightSaveJob!!
         }
         isSaving = true
+        val previousState = _uiState.value
         val job = viewModelScope.launch {
             val action = AppLog.recordUserAction("Capture Screen", "Save Memory clicked", "title=$title, date=$eventDate")
             AppLog.recordStateTransition(action, "CaptureUiState: Processing (Saving memory)")
@@ -707,11 +745,14 @@ class CaptureViewModel(
             val memoryId = UUID.randomUUID().toString()
             val reminderId = UUID.randomUUID().toString()
             val now = java.time.Instant.now()
-            val reminderStartDate = eventDate.minusDays(remindDaysBefore.toLong())
+            val clampedOffset = remindDaysBefore.coerceIn(0, 10)
+            val reminderStartDate = eventDate.minusDays(clampedOffset.toLong())
+            val effectiveReminderTime = reminderTime ?: defaultReminderTime
             val initialReminder = Reminder(
                 id = reminderId,
                 memoryId = memoryId,
                 reminderStartDate = reminderStartDate,
+                reminderTime = effectiveReminderTime,
                 createdAt = now,
                 updatedAt = now,
             )
@@ -739,7 +780,7 @@ class CaptureViewModel(
                     reminderStartDate = reminderStartDate,
                     eventDate = eventDate,
                     timeZoneId = timeZoneId,
-                    reminderTime = initialReminder.reminderTime ?: java.time.LocalTime.of(9, 0),
+                    reminderTime = effectiveReminderTime,
                 )
                 schedulingResult.getOrElse { schedulingError ->
                     // Best-effort cancellation handles an ambiguous scheduler failure where the
@@ -766,13 +807,52 @@ class CaptureViewModel(
                     dbDurationMs = dbDuration,
                 )
 
-                val uriToDelete = activeTemporaryImage?.uri ?: lastCapturedImageUri
-                if (uriToDelete != null) {
+                val uriToDelete = (previousState as? CaptureUiState.ExtractionReady)?.capturedImage?.uri
+                    ?: activeTemporaryImage?.uri
+                    ?: lastCapturedImageUri
+                val hadImageScan = !uriToDelete.isNullOrBlank()
+                if (hadImageScan && (scanEvidenceDao != null || onPushScanEvidence != null)) {
+                    val stage3 = (previousState as? CaptureUiState.ExtractionReady)?.result
+                    val compressedBytes = runCatching { imageStorage.compressForEvidence(uriToDelete!!) }.getOrNull()
+                    val sha256 = compressedBytes?.let { app.memora.platform.image.EvidenceHash.sha256Hex(it) }
+                    val fieldsJson = lastLocalFields.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
+                        "\"${k.replace("\"", "\\\"")}\":\"${v.replace("\"", "\\\"")}\""
+                    }
+                    val evidence = app.memora.data.local.ScanEvidenceEntity(
+                        memoryId = memoryId,
+                        scanId = currentScanId,
+                        extractionSource = stage3?.candidate?.extractionSource?.name ?: "LOCAL_OCR",
+                        rawOcrText = stage3?.rawOcrText ?: stage3?.candidate?.rawTextSnippet ?: "",
+                        localFieldsJson = fieldsJson,
+                        suggestedTitle = stage3?.candidate?.suggestedTitle,
+                        suggestedEventType = stage3?.candidate?.suggestedEventType?.name,
+                        suggestedEventDate = stage3?.candidate?.suggestedEventDate?.toString(),
+                        confidence = stage3?.candidate?.confidence ?: 0f,
+                        finalTitle = title,
+                        finalEventType = eventType.name,
+                        finalEventDate = eventDate.toString(),
+                        compressedImageBytes = compressedBytes,
+                        imageSha256 = sha256,
+                        createdAtEpochMs = now.toEpochMilli(),
+                    )
+                    runCatching { scanEvidenceDao?.upsert(evidence) }
+                    runCatching { onPushScanEvidence?.invoke(evidence) }
+                }
+                if (!uriToDelete.isNullOrBlank()) {
                     imageStorage.deleteImage(uriToDelete)
-                    lastCapturedImageUri = null
+                }
+                lastCapturedImageUri = null
+                lastLocalFields = emptyMap()
+
+                lastDetectedBarcode?.let { barcode ->
+                    extractLocallyUseCase.cacheLearnedBarcode(barcode, title, eventType)
+                    lastDetectedBarcode = null
                 }
 
                 analyticsLogger.logEvent("memory_saved")
+                if (hadImageScan) {
+                    onboardingPreferences?.incrementMonthlyScanCount()
+                }
                 AppLog.recordStateTransition(action, "CaptureUiState: Idle / NavigateToHome", result = "SUCCESS")
                 _uiState.value = CaptureUiState.Idle
                 _navigationEvents.emit(CaptureNavEvent.NavigateToHome)
@@ -789,7 +869,7 @@ class CaptureViewModel(
                 crashReporter.recordException(e)
                 _uiState.value = CaptureUiState.Error(
                     message = "Failed to save. Please try again.",
-                    returnState = CaptureUiState.Idle
+                    returnState = if (previousState is CaptureUiState.ExtractionReady) previousState else CaptureUiState.Idle
                 )
             } finally {
                 isSaving = false
@@ -799,6 +879,21 @@ class CaptureViewModel(
         inFlightSaveJob = job
         return job
     }
+
+    fun saveMemory(
+        title: String,
+        eventType: EventType,
+        eventDate: LocalDate,
+        remindDaysBefore: Int,
+        reminderTime: java.time.LocalTime,
+    ): Job = saveMemory(
+        title = title,
+        eventType = eventType,
+        eventDate = eventDate,
+        remindDaysBefore = remindDaysBefore,
+        timeZoneId = ZoneId.systemDefault().id,
+        reminderTime = reminderTime,
+    )
 
     class Factory(
         private val processCapturedImageUseCase: ProcessCapturedImageUseCase,
@@ -812,6 +907,9 @@ class CaptureViewModel(
         private val analyticsLogger: app.memora.domain.logging.AnalyticsLogger,
         private val extractCapturedImageUseCase: ExtractCapturedImageUseCase? = null,
         private val canScanUseCase: app.memora.domain.usecase.CanScanUseCase? = null,
+        private val onboardingPreferences: app.memora.data.local.OnboardingPreferences? = null,
+        private val scanEvidenceDao: app.memora.data.local.ScanEvidenceDao? = null,
+        private val onPushScanEvidence: (suspend (app.memora.data.local.ScanEvidenceEntity) -> Unit)? = null,
     ) : ViewModelProvider.Factory {
 
         constructor(
@@ -862,6 +960,9 @@ class CaptureViewModel(
                     analyticsLogger = analyticsLogger,
                     extractCapturedImageUseCase = extractCapturedImageUseCase,
                     canScanUseCase = canScanUseCase,
+                    onboardingPreferences = onboardingPreferences,
+                    scanEvidenceDao = scanEvidenceDao,
+                    onPushScanEvidence = onPushScanEvidence,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

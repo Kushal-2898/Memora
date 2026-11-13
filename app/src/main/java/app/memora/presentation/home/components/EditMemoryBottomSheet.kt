@@ -23,7 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.material3.ModalBottomSheetDefaults
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
@@ -62,11 +71,11 @@ fun EditMemoryBottomSheet(
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     val context = LocalContext.current
-    var title by remember { mutableStateOf(memoryItem.memory.title) }
-    var eventType by remember { mutableStateOf(memoryItem.memory.eventType) }
-    var eventDate by remember { mutableStateOf(memoryItem.memory.eventDate) }
+    var title by remember(memoryItem.memory.id) { mutableStateOf(memoryItem.memory.title) }
+    var eventType by remember(memoryItem.memory.id) { mutableStateOf(memoryItem.memory.eventType) }
+    var eventDate by remember(memoryItem.memory.id) { mutableStateOf(memoryItem.memory.eventDate) }
 
-    val datePickerDialog = remember {
+    val datePickerDialog = remember(eventDate) {
         DatePickerDialog(
             context,
             { _, year, month, dayOfMonth ->
@@ -78,9 +87,31 @@ fun EditMemoryBottomSheet(
         )
     }
 
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+    val coroutineScope = rememberCoroutineScope()
+
+    BackHandler(enabled = sheetState.isVisible) {
+        if (isKeyboardVisible) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        } else {
+            coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                if (!sheetState.isVisible) {
+                    onDismiss()
+                }
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            shouldDismissOnBackPress = false,
+        ),
         containerColor = SurfaceCool,
         modifier = modifier
     ) {
@@ -104,7 +135,7 @@ fun EditMemoryBottomSheet(
                 onValueChange = { title = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Title") },
+                label = { Text("Item Title *") },
                 shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = BorderLight,
@@ -125,7 +156,7 @@ fun EditMemoryBottomSheet(
                     .clickable { datePickerDialog.show() },
                 readOnly = true,
                 enabled = false,
-                label = { Text("Expiration Date") },
+                label = { Text("Event Date *") },
                 trailingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.EditCalendar,
@@ -146,7 +177,7 @@ fun EditMemoryBottomSheet(
             Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = "Category",
+                text = "Category *",
                 style = MemoraTypography.headline,
                 color = PrimaryNavy
             )

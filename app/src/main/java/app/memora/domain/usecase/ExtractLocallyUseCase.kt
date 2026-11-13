@@ -11,6 +11,7 @@ import app.memora.platform.logging.AppLog
 import app.memora.platform.ocr.TextExtractor
 import app.memora.platform.api.OpenFoodFactsApi
 import app.memora.platform.ocr.BarcodeExtractor
+import app.memora.data.local.OfflineProductCatalog
 import app.memora.domain.benchmark.ScannerBenchmarkEngine
 
 /**
@@ -26,6 +27,7 @@ class ExtractLocallyUseCase(
     private val textExtractor: TextExtractor,
     private val barcodeExtractor: BarcodeExtractor,
     private val deterministicExtractor: DeterministicMemoryExtractor,
+    private val offlineCatalog: OfflineProductCatalog = OfflineProductCatalog(),
 ) {
     constructor(
         textExtractor: TextExtractor,
@@ -36,7 +38,21 @@ class ExtractLocallyUseCase(
             override suspend fun extractBarcode(imageUri: String): Result<String?> = Result.success(null)
         },
         deterministicExtractor = deterministicExtractor,
+        offlineCatalog = OfflineProductCatalog(),
     )
+
+    fun cacheLearnedBarcode(barcode: String, title: String, category: app.memora.domain.model.EventType) {
+        val cleanTitle = title.trim()
+        if (barcode.isNotBlank() && cleanTitle.isNotBlank() && !cleanTitle.startsWith("Barcode:", ignoreCase = true)) {
+            offlineCatalog.cacheProduct(
+                barcode = barcode,
+                metadata = app.memora.data.local.BarcodeMetadata(
+                    productName = cleanTitle,
+                    category = category,
+                )
+            )
+        }
+    }
 
     suspend operator fun invoke(
         image: CapturedImage,
@@ -52,7 +68,15 @@ class ExtractLocallyUseCase(
         val startTime = System.currentTimeMillis()
         
         ScannerBenchmarkEngine.markOcrStart()
-        val textResult = textExtractor.extractText(image.uri, scanId)
+        var textResult = textExtractor.extractText(image.uri, scanId)
+        if (textResult.isFailure && textExtractor is app.memora.platform.ocr.SelectableTextExtractor) {
+            val fallbackEngine = if (textExtractor.activeEngine == app.memora.platform.ocr.ActiveOcrEngine.RAPID_OCR) {
+                textExtractor.mlKitExtractor
+            } else {
+                textExtractor.rapidOcrExtractor
+            }
+            textResult = fallbackEngine.extractText(image.uri, scanId)
+        }
 
         return textResult.fold(
             onSuccess = { extractedText ->
@@ -120,16 +144,19 @@ class ExtractLocallyUseCase(
                 if (barcodeResult.isSuccess) {
                     val barcode = barcodeResult.getOrNull()
                     if (!barcode.isNullOrBlank()) {
-                        val productTitle = OpenFoodFactsApi.lookupBarcode(barcode)
+                        localResult = localResult.copy(detectedBarcode = barcode.trim())
+                        val offlineMatch = offlineCatalog.lookup(barcode)
+                        val productTitle = offlineMatch?.productName
                         if (!productTitle.isNullOrBlank()) {
-                            // Only overwrite if the local extractor didn't find a meaningful title.
-                            // Preserves specific OCR titles (e.g. "Paracetamol 500mg Expiry")
-                            // from being replaced by generic barcode names.
-                            if (localResult.title.isNullOrBlank() || localResult.title == "Untitled Memory") {
+                            // Offline catalog anchor takes precedence, or fills in untitled/blank OCR title
+                            if (localResult.title.isNullOrBlank() || localResult.title == "Untitled Memory" || localResult.title == "Other" || localResult.title!!.startsWith("General ")) {
                                 localResult = localResult.copy(title = productTitle)
                             }
                         } else if (localResult.title.isNullOrBlank() || localResult.title == "Untitled Memory") {
                             localResult = localResult.copy(title = "Barcode: $barcode")
+                        }
+                        if (offlineMatch?.category != null && (localResult.eventType == null || localResult.eventType == app.memora.domain.model.EventType.OTHER)) {
+                            localResult = localResult.copy(eventType = offlineMatch.category)
                         }
                     }
                 }

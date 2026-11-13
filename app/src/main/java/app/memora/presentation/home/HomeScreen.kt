@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +38,13 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Person
+import app.memora.domain.model.AuthUser
+import app.memora.ui.theme.DeepForestGreen
+import app.memora.ui.theme.StatusUpcoming
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
@@ -99,9 +108,9 @@ enum class HomeStatusTab(
     val emptyMessage: String,
 ) {
     NEEDS_ACTION(
-        title = "Needs Action",
+        title = "Due Soon",
         emptyIcon = Icons.Outlined.NotificationsActive,
-        emptyMessage = "You're all caught up! No items need your attention right now.",
+        emptyMessage = "You're all caught up! No items due soon.",
     ),
     UPCOMING(
         title = "Upcoming",
@@ -114,6 +123,8 @@ enum class HomeStatusTab(
 fun HomeRoute(
     viewModel: HomeViewModel,
     onNavigateToScanner: () -> Unit,
+    currentUser: AuthUser? = null,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -128,6 +139,8 @@ fun HomeRoute(
         onUndoCompleteReminder = viewModel::undoCompleteReminder,
         onDeleteMemory = viewModel::deleteMemory,
         onUpdateMemory = viewModel::updateMemory,
+        currentUser = currentUser,
+        onProfileClick = onProfileClick,
         modifier = modifier,
     )
 }
@@ -137,12 +150,16 @@ fun HomeRoute(
 fun HomeRoute(
     viewModel: HomeViewModel,
     onNavigateToCapture: () -> Unit,
+    currentUser: AuthUser? = null,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     deprecatedTag: Unit = Unit,
 ) {
     HomeRoute(
         viewModel = viewModel,
         onNavigateToScanner = onNavigateToCapture,
+        currentUser = currentUser,
+        onProfileClick = onProfileClick,
         modifier = modifier,
     )
 }
@@ -159,9 +176,11 @@ fun HomeScreen(
     onUndoCompleteReminder: (String) -> Unit = {},
     onDeleteMemory: (String) -> Unit = {},
     onUpdateMemory: (app.memora.domain.model.Memory, String, app.memora.domain.model.EventType, java.time.LocalDate) -> Unit = { _, _, _, _ -> },
+    currentUser: AuthUser? = null,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var selectedTab by remember { mutableStateOf(HomeStatusTab.NEEDS_ACTION) }
+    var selectedTab by rememberSaveable { mutableStateOf(HomeStatusTab.NEEDS_ACTION) }
     var memoryPendingDelete by remember { mutableStateOf<MemoryWithReminders?>(null) }
     var memoryPendingEdit by remember { mutableStateOf<MemoryWithReminders?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -176,26 +195,32 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .widthIn(max = 600.dp)
                 .align(Alignment.TopCenter)
                 .padding(horizontal = 16.dp),
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Screen Header: Title (22sp weight 600) + Subtitle caption (13sp #6B7280)
-            HomeHeader()
+            // Screen Header: Title (22sp weight 600) + Subtitle caption (13sp #6B7280) + Profile Avatar
+            HomeHeader(currentUser = currentUser, onProfileClick = onProfileClick)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_search_input"),
                 placeholder = { Text("Search memories...", color = TextCaption) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search", tint = TextCaption) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
+                        IconButton(onClick = {
+                            app.memora.platform.logging.AppLog.recordUserAction("Home Screen", "Search query cleared")
+                            onSearchQueryChange("")
+                        }) {
                             Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = TextCaption)
                         }
                     }
@@ -215,7 +240,10 @@ fun HomeScreen(
             // Status Tabs Row: Upcoming | Active | Due Today | Overdue | Completed
             HomeStatusTabBar(
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
+                onTabSelected = {
+                    app.memora.platform.logging.AppLog.recordUserAction("Home Screen", "Status tab switched", it.title)
+                    selectedTab = it
+                },
                 uiState = uiState,
             )
 
@@ -233,8 +261,7 @@ fun HomeScreen(
                     else -> 2
                 },
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(220, delayMillis = 90)) +
-                        scaleIn(initialScale = 0.98f, animationSpec = tween(220, delayMillis = 90)) togetherWith
+                    fadeIn(animationSpec = tween(140)) togetherWith
                         fadeOut(animationSpec = tween(90))
                 },
                 modifier = Modifier
@@ -258,14 +285,8 @@ fun HomeScreen(
                         MemoraEmptyState(
                             icon = selectedTab.emptyIcon,
                             message = if (searchQuery.isNotBlank()) "No matching memories found for \"$searchQuery\"." else selectedTab.emptyMessage,
-                            actionLabel = if (searchQuery.isNotBlank()) "Clear search" else "Scan",
-                            onAction = {
-                                if (searchQuery.isNotBlank()) {
-                                    onSearchQueryChange("")
-                                } else {
-                                    onScannerClick()
-                                }
-                            },
+                            actionLabel = if (searchQuery.isNotBlank()) "Clear search" else null,
+                            onAction = if (searchQuery.isNotBlank()) { { onSearchQueryChange("") } } else null,
                             modifier = Modifier.fillMaxSize(),
                             testTag = "home_empty_state",
                         )
@@ -511,20 +532,96 @@ fun SwipeableMemoryItem(
 }
 
 @Composable
-private fun HomeHeader(modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.home_title),
-            style = MemoraTypography.title,
-            color = PrimaryNavy,
+private fun HomeHeader(
+    currentUser: AuthUser?,
+    onProfileClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.home_title),
+                style = MemoraTypography.title,
+                color = PrimaryNavy,
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = stringResource(R.string.app_tagline),
+                style = MemoraTypography.caption,
+                color = TextCaption,
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        ProfileAvatarButton(
+            currentUser = currentUser,
+            onClick = onProfileClick,
         )
+    }
+}
 
-        Spacer(modifier = Modifier.height(4.dp))
+@Composable
+fun ProfileAvatarButton(
+    currentUser: AuthUser?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val squircleShape = RoundedCornerShape(13.dp)
+    val isSynced = currentUser != null && !currentUser.isAnonymous &&
+        !currentUser.uid.startsWith("email_") && !currentUser.uid.startsWith("google_")
+    val syncColor = if (isSynced) StatusCompleted else StatusUpcoming
+    val initial = currentUser?.displayName?.firstOrNull()?.uppercase()
 
-        Text(
-            text = stringResource(R.string.app_tagline),
-            style = MemoraTypography.caption,
-            color = TextCaption,
+    Box(
+        modifier = modifier
+            .size(42.dp)
+            .clip(squircleShape)
+            .background(if (initial != null) AccentIndigo else Color(0xFFEEF2FF))
+            .border(
+                width = 1.dp,
+                color = if (initial != null) AccentIndigo else Color(0xFFC7D2FE),
+                shape = squircleShape,
+            )
+            .clickable(onClick = onClick)
+            .testTag("home_profile_avatar_button"),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (initial != null) {
+            Text(
+                text = initial,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.Person,
+                contentDescription = "Profile and Settings",
+                tint = AccentIndigo,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+
+        // Sync indicator dot at bottom right
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(2.5.dp)
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(syncColor)
+                .border(
+                    width = 1.5.dp,
+                    color = CardWhite,
+                    shape = CircleShape,
+                )
         )
     }
 }

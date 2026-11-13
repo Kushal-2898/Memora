@@ -1,6 +1,12 @@
 package app.memora.presentation.capture.components
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import java.time.LocalTime
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import app.memora.domain.extraction.DateRole
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +33,16 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.EditCalendar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.material3.ModalBottomSheetDefaults
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
@@ -79,7 +94,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ExtractedMemoryBottomSheet(
     candidate: ExtractedMemoryCandidate?,
-    onSave: (title: String, eventType: EventType, eventDate: LocalDate, remindDaysBefore: Int) -> Unit,
+    defaultReminderTime: LocalTime = LocalTime.of(9, 0),
+    onSave: (title: String, eventType: EventType, eventDate: LocalDate, remindDaysBefore: Int, reminderTime: LocalTime) -> Unit,
     onRetake: () -> Unit = {},
     onReplace: () -> Unit = {},
     onRescan: (() -> Unit)? = null,
@@ -113,12 +129,58 @@ fun ExtractedMemoryBottomSheet(
     val initialTitle = candidate?.suggestedTitle?.takeIf { it.isNotBlank() } ?: "Important date"
     val initialEventType = candidate?.suggestedEventType ?: EventType.OTHER
 
-    var title by remember { mutableStateOf(initialTitle) }
-    var selectedEventType by remember { mutableStateOf(initialEventType) }
-    var selectedDate by remember { mutableStateOf(initialDate) }
+    var title by remember(candidate) { mutableStateOf(initialTitle) }
+    var selectedEventType by remember(candidate) { mutableStateOf(initialEventType) }
+    var selectedDate by remember(candidate) { mutableStateOf(initialDate) }
     var remindDaysBefore by remember { mutableIntStateOf(1) }
+    var selectedReminderTime by remember { mutableStateOf(defaultReminderTime) }
+
+    val mfgCandidate = candidate?.alternatives?.firstOrNull {
+        it.role == DateRole.HISTORICAL_MANUFACTURE ||
+        it.context.contains("Manufacture", ignoreCase = true) ||
+        it.context.contains("MFG", ignoreCase = true) ||
+        it.context.contains("PKD", ignoreCase = true)
+    }
+    val detectedMfgDate = mfgCandidate?.eventDate ?: (if (candidateDate != null && candidateDate.isBefore(today)) candidateDate else null)
+
+    val detectedShelfLifeMonths = remember(candidate) {
+        candidate?.rawTextSnippet?.let { text ->
+            val match = Regex("""(?:best\s*before|shelf\s*life|valid\s*for|use\s*within)?\s*([1-9]|[1-3]\d)\s*months?(?:\s+(?:from|of)\s+(?:the\s*)?(?:date\s*of\s*)?(?:mfg|mfd|pkd|packaging|date))?""", RegexOption.IGNORE_CASE).find(text)
+            match?.groupValues?.get(1)?.toIntOrNull()
+        }
+    }
+
+    var showShelfLifeCalculator by remember(detectedMfgDate, detectedShelfLifeMonths) {
+        mutableStateOf(detectedMfgDate != null || detectedShelfLifeMonths != null)
+    }
+    var mfgBaseDate by remember(detectedMfgDate) {
+        mutableStateOf(detectedMfgDate ?: if (initialDate.isBefore(today)) initialDate else today)
+    }
+    var customMonthsInput by remember(detectedShelfLifeMonths) {
+        mutableStateOf(detectedShelfLifeMonths?.toString() ?: "")
+    }
+    var selectedMonths by remember(detectedShelfLifeMonths) {
+        mutableStateOf<Int?>(detectedShelfLifeMonths)
+    }
 
     val isPastDate = selectedDate.isBefore(today)
+
+    fun showMfgCalendarPicker() {
+        val dialog = DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val newMfg = LocalDate.of(year, month + 1, dayOfMonth)
+                mfgBaseDate = newMfg
+                selectedMonths?.let { m ->
+                    selectedDate = newMfg.plusMonths(m.toLong())
+                }
+            },
+            mfgBaseDate.year,
+            mfgBaseDate.monthValue - 1,
+            mfgBaseDate.dayOfMonth,
+        )
+        dialog.show()
+    }
 
     fun showCalendarPicker() {
         val dialog = DatePickerDialog(
@@ -133,11 +195,55 @@ fun ExtractedMemoryBottomSheet(
         dialog.show()
     }
 
-    val isAmbiguous = (candidate?.alternatives?.size ?: 0) > 1
+    fun showTimePicker() {
+        val dialog = TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                selectedReminderTime = LocalTime.of(hourOfDay, minute)
+            },
+            selectedReminderTime.hour,
+            selectedReminderTime.minute,
+            android.text.format.DateFormat.is24HourFormat(context),
+        )
+        dialog.show()
+    }
+
+    val distinctAlternatives = remember(candidate) {
+        val alts = candidate?.alternatives ?: emptyList()
+        val futureAlts = alts.filter { it.eventDate != null && !it.eventDate.isBefore(today) }.distinctBy { it.eventDate }
+        if (futureAlts.isNotEmpty()) {
+            futureAlts
+        } else {
+            alts.filter { it.eventDate != null }.distinctBy { it.eventDate }
+        }
+    }
+    val isAmbiguous = distinctAlternatives.size > 1
+
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+    val coroutineScope = rememberCoroutineScope()
+
+    BackHandler(enabled = sheetState.isVisible) {
+        if (isKeyboardVisible) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        } else {
+            coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                if (!sheetState.isVisible) {
+                    onRequestDismiss()
+                }
+            }
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onRequestDismiss,
         sheetState = sheetState,
+        properties = androidx.compose.material3.ModalBottomSheetProperties(
+            shouldDismissOnBackPress = false,
+        ),
         containerColor = CardWhite,
         scrimColor = Color.Black.copy(alpha = 0.45f),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
@@ -160,28 +266,16 @@ fun ExtractedMemoryBottomSheet(
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding(),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (isAmbiguous) "Which date to remember?" else "Does this look right?",
-                    style = MemoraTypography.title.copy(fontSize = 19.sp),
-                    color = PrimaryNavy,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                ConfidenceChip(
-                    confidence = candidate?.confidence ?: 0.5f,
-                    isAmbiguous = isAmbiguous,
-                    showPercentage = true,
-                )
-            }
+            Text(
+                text = if (isAmbiguous) "Which date to remember?" else "Does this look right?",
+                style = MemoraTypography.title.copy(fontSize = 19.sp),
+                color = PrimaryNavy,
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Engine Attribution Badge
-            val isGemini = candidate?.extractionSource == ExtractionSource.GEMINI_AI
+            val isGemini = candidate?.extractionSource == app.memora.domain.extraction.ExtractionSource.GEMINI_AI
             val badgeText = if (isGemini) "\u2728 Extracted by Gemini AI" else "\u26A1 Instant Local Scan"
             val badgeColor = if (isGemini) AccentIndigo else StatusCompleted
 
@@ -209,7 +303,7 @@ fun ExtractedMemoryBottomSheet(
                     color = TextCaption,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                candidate?.alternatives?.forEach { alt ->
+                distinctAlternatives.forEach { alt ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -249,7 +343,7 @@ fun ExtractedMemoryBottomSheet(
 
             // 1. Title Input
             Text(
-                text = "Title",
+                text = "Item Title *",
                 style = MemoraTypography.label,
                 color = PrimaryNavy,
             )
@@ -275,7 +369,7 @@ fun ExtractedMemoryBottomSheet(
 
             // 2. Event Type Selection Chips
             Text(
-                text = "Event type",
+                text = "Event type *",
                 style = MemoraTypography.label,
                 color = PrimaryNavy,
             )
@@ -315,13 +409,169 @@ fun ExtractedMemoryBottomSheet(
 
             // 3. Date shown large and editable
             Text(
-                text = "Event date",
+                text = "Event Date *",
                 style = MemoraTypography.label,
                 color = PrimaryNavy,
             )
             Spacer(modifier = Modifier.height(6.dp))
 
-            if (isPastDate) {
+            // Shelf Life / Months-to-use Calculator
+            if (showShelfLifeCalculator) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceCool)
+                        .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                        .testTag("shelf_life_calculator"),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { showMfgCalendarPicker() }
+                                .padding(vertical = 2.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CalendarMonth,
+                                contentDescription = "Change Mfg Date",
+                                tint = AccentIndigo,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = "MFG: ${mfgBaseDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))} ✎",
+                                style = MemoraTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                                color = PrimaryNavy,
+                            )
+                        }
+                        if (selectedMonths != null) {
+                            Text(
+                                text = "+${selectedMonths} mo",
+                                style = MemoraTypography.caption.copy(fontWeight = FontWeight.Bold),
+                                color = AccentIndigo,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Add shelf life (months):",
+                        style = MemoraTypography.caption.copy(fontSize = 11.sp),
+                        color = TextCaption,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(3, 6, 9, 12, 18, 24, 36).forEach { months ->
+                            val isSelected = selectedMonths == months
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) AccentIndigo else CardWhite)
+                                    .border(
+                                        BorderStroke(1.dp, if (isSelected) AccentIndigo else BorderLight),
+                                        RoundedCornerShape(8.dp),
+                                    )
+                                    .clickable {
+                                        selectedMonths = months
+                                        customMonthsInput = months.toString()
+                                        selectedDate = mfgBaseDate.plusMonths(months.toLong())
+                                        selectedEventType = EventType.BEST_BEFORE
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .testTag("shelf_life_chip_${months}m"),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "${months}m",
+                                    style = MemoraTypography.caption.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 12.sp,
+                                    ),
+                                    color = if (isSelected) Color.White else PrimaryNavy,
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        OutlinedTextField(
+                            value = customMonthsInput,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() }.take(3)
+                                customMonthsInput = filtered
+                                val months = filtered.toIntOrNull()
+                                if (months != null && months > 0) {
+                                    selectedMonths = months
+                                    selectedDate = mfgBaseDate.plusMonths(months.toLong())
+                                    selectedEventType = EventType.BEST_BEFORE
+                                } else {
+                                    selectedMonths = null
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    "Custom",
+                                    style = MemoraTypography.caption.copy(fontSize = 11.sp),
+                                    color = TextCaption,
+                                )
+                            },
+                            textStyle = MemoraTypography.caption.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryNavy,
+                            ),
+                            singleLine = true,
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(44.dp)
+                                .testTag("shelf_life_custom_input"),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = AccentIndigo,
+                                unfocusedBorderColor = BorderLight,
+                                focusedContainerColor = CardWhite,
+                                unfocusedContainerColor = CardWhite,
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showShelfLifeCalculator = true }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "+ Add shelf life from MFG / packing date",
+                        style = MemoraTypography.caption.copy(
+                            color = AccentIndigo,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (isPastDate && !showShelfLifeCalculator) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -432,7 +682,7 @@ fun ExtractedMemoryBottomSheet(
                     .testTag("scroll_picker_days"),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                (1..10).forEach { days ->
+                (0..10).forEach { days ->
                     val isSelected = days == remindDaysBefore
                     Box(
                         modifier = Modifier
@@ -448,7 +698,11 @@ fun ExtractedMemoryBottomSheet(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = if (days == 1) "1 day" else "$days days",
+                            text = when (days) {
+                                0 -> "Same day"
+                                1 -> "1 day"
+                                else -> "$days days"
+                            },
                             style = MemoraTypography.body.copy(fontSize = 14.sp),
                             color = if (isSelected) Color.White else PrimaryNavy,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
@@ -457,9 +711,69 @@ fun ExtractedMemoryBottomSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 5. Reminder Delivery Time (Changeable)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Reminder delivery time",
+                    style = MemoraTypography.label,
+                    color = PrimaryNavy,
+                )
+                Text(
+                    text = selectedReminderTime.format(DateTimeFormatter.ofPattern("h:mm a")),
+                    style = MemoraTypography.caption,
+                    color = AccentIndigo,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SurfaceCool)
+                    .border(BorderStroke(1.dp, BorderLight), RoundedCornerShape(12.dp))
+                    .clickable { showTimePicker() }
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .testTag("capture_time_picker"),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.Schedule,
+                            contentDescription = "Change time",
+                            tint = AccentIndigo,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Reminder Time",
+                            style = MemoraTypography.body.copy(fontSize = 14.sp),
+                            color = PrimaryNavy,
+                        )
+                    }
+                    Text(
+                        text = selectedReminderTime.format(DateTimeFormatter.ofPattern("h:mm a")),
+                        style = MemoraTypography.caption.copy(fontWeight = FontWeight.Medium),
+                        color = AccentIndigo,
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 5. Calendar option as secondary tap below scroll picker
+            // 6. Calendar option as secondary tap below scroll picker
             SecondaryButton(
                 text = "Choose date on calendar",
                 icon = Icons.Outlined.CalendarMonth,
@@ -476,7 +790,7 @@ fun ExtractedMemoryBottomSheet(
                 text = "Save Memory",
                 enabled = title.isNotBlank(),
                 onClick = {
-                    onSave(title, selectedEventType, selectedDate, remindDaysBefore)
+                    onSave(title, selectedEventType, selectedDate, remindDaysBefore, selectedReminderTime)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -497,4 +811,43 @@ fun ExtractedMemoryBottomSheet(
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExtractedMemoryBottomSheet(
+    candidate: ExtractedMemoryCandidate?,
+    onSave: (title: String, eventType: EventType, eventDate: LocalDate, remindDaysBefore: Int) -> Unit,
+    onRetake: () -> Unit = {},
+    onReplace: () -> Unit = {},
+    onRescan: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    onRequestDismiss: () -> Unit = onDismiss,
+    sheetState: SheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { sheetValue ->
+            if (sheetValue == SheetValue.Hidden) {
+                onRequestDismiss()
+                false
+            } else {
+                true
+            }
+        },
+    ),
+) {
+    ExtractedMemoryBottomSheet(
+        candidate = candidate,
+        defaultReminderTime = LocalTime.of(9, 0),
+        onSave = { title, eventType, eventDate, remindDaysBefore, _ ->
+            onSave(title, eventType, eventDate, remindDaysBefore)
+        },
+        onRetake = onRetake,
+        onReplace = onReplace,
+        onRescan = onRescan,
+        onDismiss = onDismiss,
+        modifier = modifier,
+        onRequestDismiss = onRequestDismiss,
+        sheetState = sheetState,
+    )
 }

@@ -42,7 +42,12 @@ class MemoraNotificationScheduler(
                 app.memora.platform.logging.AppLog.recordNotificationOperation("scheduleReminder", System.currentTimeMillis() - start, false, errorCategory = app.memora.platform.logging.DiagnosticErrorCategory.PERMISSION_ERROR)
             }
             val zone = runCatching { ZoneId.of(timeZoneId) }.getOrElse { ZoneId.systemDefault() }
-            val triggerAt = reminderStartDate.atTime(reminderTime).atZone(zone).toInstant()
+            val triggerAt = computeNextTriggerInstant(
+                reminderStartDate = reminderStartDate,
+                reminderTime = reminderTime,
+                zone = zone,
+                now = clockProvider.now(),
+            )
             
             scheduleExactAlarm(reminderId, title, memoryId, eventDate.toString(), timeZoneId, triggerAt.toEpochMilli())
             Unit
@@ -144,4 +149,22 @@ class MemoraNotificationScheduler(
 
     override val areNotificationsEnabled: Boolean
         get() = NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    companion object {
+        fun computeNextTriggerInstant(
+            reminderStartDate: LocalDate,
+            reminderTime: LocalTime,
+            zone: ZoneId,
+            now: Instant,
+        ): Instant {
+            val today = now.atZone(zone).toLocalDate()
+            val effectiveDate = if (reminderStartDate.isBefore(today)) today else reminderStartDate
+            val candidate = effectiveDate.atTime(reminderTime).atZone(zone).toInstant()
+            return if (candidate.isBefore(now)) {
+                effectiveDate.plusDays(1).atTime(reminderTime).atZone(zone).toInstant()
+            } else {
+                candidate
+            }
+        }
+    }
 }

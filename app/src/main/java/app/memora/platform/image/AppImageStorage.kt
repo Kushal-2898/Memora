@@ -55,9 +55,21 @@ class AppImageStorage(
                 val inputStream = context.contentResolver.openInputStream(parsedUri)
                     ?: throw MemoraError.Capture.ImportFailed("Unable to open stream for URI: $uriString")
 
+                val maxImportBytes = 20L * 1024L * 1024L
+                var totalCopied = 0L
                 inputStream.use { input ->
                     targetFile.outputStream().use { output ->
-                        input.copyTo(output)
+                        val buffer = ByteArray(8192)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } >= 0) {
+                            totalCopied += read
+                            if (totalCopied > maxImportBytes) {
+                                output.close()
+                                targetFile.delete()
+                                throw MemoraError.Capture.ImportFailed("Image exceeds 20 MB maximum size limit.")
+                            }
+                            output.write(buffer, 0, read)
+                        }
                     }
                 }
 
@@ -107,5 +119,48 @@ class AppImageStorage(
                 false
             }
         }.getOrDefault(false)
+    }
+
+    override suspend fun compressForEvidence(uriString: String): ByteArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            val path = runCatching { Uri.parse(uriString)?.path }.getOrNull()
+                ?: runCatching { java.net.URI(uriString).path }.getOrNull()
+                ?: uriString.removePrefix("file:")
+            val file = File(path)
+            if (!file.exists() || file.length() == 0L) return@runCatching null
+
+            val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(file.absolutePath, boundsOpts)
+            val maxDim = 2560
+            var sample = 1
+            while (boundsOpts.outWidth / sample > maxDim || boundsOpts.outHeight / sample > maxDim) {
+                sample *= 2
+            }
+            val decodeOpts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath, decodeOpts)
+                ?: return@runCatching file.readBytes().takeIf { it.size <= 750_000 }?.let { EvidenceHash.gzip(it) }
+
+            val out = java.io.ByteArrayOutputStream()
+            val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                android.graphics.Bitmap.CompressFormat.WEBP_LOSSY
+            } else {
+                @Suppress("DEPRECATION")
+                android.graphics.Bitmap.CompressFormat.WEBP
+            }
+            var quality = 85
+            bitmap.compress(format, quality, out)
+            while (out.size() > 700_000 && quality > 50) {
+                out.reset()
+                quality -= 10
+                bitmap.compress(format, quality, out)
+            }
+            bitmap.recycle()
+            EvidenceHash.gzip(out.toByteArray())
+        }.getOrNull()
+    }
+
+    fun decodeEvidenceBitmap(compressed: ByteArray): android.graphics.Bitmap? {
+        val raw = decompressEvidenceBytes(compressed)
+        return android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.size)
     }
 }

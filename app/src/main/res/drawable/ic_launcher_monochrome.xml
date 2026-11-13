@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Left upright and diagonal fold -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 29,76 L 29,40 C 29,35.5 32.5,32 37,32 C 41,32 44,34 46.5,37 L 71,68 L 71,76 L 61,76 L 43,51 L 43,76 Z" />
+    <!-- Terracotta inner fold triangle -->
+    <path
+        android:fillColor="#CCFFFFFF"
+        android:pathData="M 48,39 L 71,39 L 71,65 Z" />
+    <!-- Right upright stem -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 61,32 L 71,32 C 75.5,32 79.5,35.5 79.5,40 L 79.5,76 L 68,76 L 68,40 C 68,35.5 65.5,32 61,32 Z" />
+</vector>

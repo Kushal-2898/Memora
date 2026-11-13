@@ -193,6 +193,99 @@ class Stage6NotificationTest {
     }
 
     @Test
+    fun `BootReceiver re-arms alarms on TIMEZONE_CHANGED and TIME_SET`() = runTest {
+        val today = LocalDate.now(ZoneId.of("UTC"))
+        val memoryId = app.container.createMemoryUseCase(
+            title = "Timezone Recovery Task", eventType = EventType.OTHER, eventDate = today.plusDays(3),
+        ).getOrThrow()
+        app.container.createReminderUseCase(
+            memoryId = memoryId, reminderStartDate = today,
+        ).getOrThrow()
+
+        shadowOf(alarmManager).scheduledAlarms.clear()
+        BootReceiver().execute(app, Intent(Intent.ACTION_TIMEZONE_CHANGED))
+        assertTrue("BootReceiver must re-arm on TIMEZONE_CHANGED", shadowOf(alarmManager).scheduledAlarms.isNotEmpty())
+
+        shadowOf(alarmManager).scheduledAlarms.clear()
+        BootReceiver().execute(app, Intent(Intent.ACTION_TIME_CHANGED))
+        assertTrue("BootReceiver must re-arm on TIME_SET", shadowOf(alarmManager).scheduledAlarms.isNotEmpty())
+    }
+
+    @Test
+    fun `Reminder notification includes Mark Done action and marks reminder complete`() = runTest {
+        val today = LocalDate.now(ZoneId.of("UTC"))
+        val memoryId = app.container.createMemoryUseCase(
+            title = "Pantry Item", eventType = EventType.OTHER, eventDate = today.plusDays(1),
+        ).getOrThrow()
+        val reminderId = app.container.createReminderUseCase(
+            memoryId = memoryId, reminderStartDate = today,
+        ).getOrThrow()
+
+        val reminderIntent = Intent(ReminderAlarmReceiver.ACTION_REMINDER).apply {
+            putExtra(ReminderAlarmReceiver.KEY_MEMORY_ID, memoryId)
+            putExtra(ReminderAlarmReceiver.KEY_REMINDER_ID, reminderId)
+            putExtra(ReminderAlarmReceiver.KEY_TITLE, "Pantry Item")
+            putExtra(ReminderAlarmReceiver.KEY_EVENT_DATE, today.plusDays(1).toString())
+            putExtra(ReminderAlarmReceiver.KEY_TIME_ZONE_ID, "UTC")
+        }
+
+        ReminderAlarmReceiver().execute(app, reminderIntent)
+        val notification = shadowOf(notificationManager).getNotification(reminderId.hashCode())
+        assertNotNull("Notification must be posted", notification)
+        assertTrue("Notification must have Mark Done action", notification!!.actions.any { it.title == "Mark Done" })
+        assertTrue("Notification must have Remind Later action", notification.actions.any { it.title == "Remind Later" })
+
+        // Execute Mark Done action
+        val completeIntent = Intent(ReminderAlarmReceiver.ACTION_COMPLETE_REMINDER).apply {
+            putExtra(ReminderAlarmReceiver.KEY_REMINDER_ID, reminderId)
+        }
+        ReminderAlarmReceiver().execute(app, completeIntent)
+
+        // Give background IO coroutine a moment to complete
+        kotlinx.coroutines.delay(200)
+
+        val updated = app.container.reminderRepository.getReminder(reminderId)
+        assertNotNull(updated)
+        assertNotNull("Reminder must be marked completed", updated!!.completedAt)
+    }
+
+    @Test
+    fun `Reminder notification includes Remind Later action and snoozes reminder`() = runTest {
+        val today = LocalDate.now(ZoneId.of("UTC"))
+        val memoryId = app.container.createMemoryUseCase(
+            title = "Medicine Dose", eventType = EventType.OTHER, eventDate = today.plusDays(3),
+            timeZoneId = "UTC",
+        ).getOrThrow()
+        val reminderId = app.container.createReminderUseCase(
+            memoryId = memoryId, reminderStartDate = today,
+        ).getOrThrow()
+
+        val reminderIntent = Intent(ReminderAlarmReceiver.ACTION_REMINDER).apply {
+            putExtra(ReminderAlarmReceiver.KEY_MEMORY_ID, memoryId)
+            putExtra(ReminderAlarmReceiver.KEY_REMINDER_ID, reminderId)
+            putExtra(ReminderAlarmReceiver.KEY_TITLE, "Medicine Dose")
+            putExtra(ReminderAlarmReceiver.KEY_EVENT_DATE, today.plusDays(3).toString())
+            putExtra(ReminderAlarmReceiver.KEY_TIME_ZONE_ID, "UTC")
+        }
+
+        ReminderAlarmReceiver().execute(app, reminderIntent)
+        val notification = shadowOf(notificationManager).getNotification(reminderId.hashCode())
+        assertNotNull("Notification must be posted", notification)
+        assertTrue("Notification must have Remind Later action", notification!!.actions.any { it.title == "Remind Later" })
+
+        // Execute Remind Later action
+        val snoozeIntent = Intent(ReminderAlarmReceiver.ACTION_SNOOZE_REMINDER).apply {
+            putExtra(ReminderAlarmReceiver.KEY_REMINDER_ID, reminderId)
+        }
+        ReminderAlarmReceiver().execute(app, snoozeIntent)
+
+        val updated = app.container.reminderRepository.getReminder(reminderId)
+        assertNotNull(updated)
+        assertEquals(today.plusDays(1), updated!!.reminderStartDate)
+        assertNull("Reminder must remain uncompleted", updated.completedAt)
+    }
+
+    @Test
     fun `SnoozeReminderUseCase postpones reminder and reschedules alarm`() = runTest {
         val today = LocalDate.now(ZoneId.of("UTC"))
         val memoryId = app.container.createMemoryUseCase(

@@ -9,6 +9,19 @@ val CardWhite = Color(0xFFFFFFFF)          // Crisp white — elevated paper sur
 val AccentIndigo = Color(0xFFE06D53)       // Warm terracotta — primary accent / active states
 val BorderLight = Color(0xFFEDE7DD)        // Warm oatmeal/linen hairline border
 
+// Official Memora Brand Palette (Onboarding & Identity)
+val ForestGreen = Color(0xFF4A7C59)
+val DeepForestGreen = Color(0xFF214A34)
+val WarmPaperBeige = Color(0xFFFAF7F2)
+val TerracottaOrange = Color(0xFFE06D53)
+val PrimaryText = Color(0xFF19251F)
+val SecondaryText = Color(0xFF68716B)
+val BorderOatmeal = Color(0xFFE8E1D7)
+val CardCream = Color(0xFFFFFDF9)
+val MutedGreen = Color(0xFFE6EDE5)
+val CharcoalSlate = Color(0xFF555F58)
+val SupportingBeige = Color(0xFFF1E9DC)
+
 // Status colors (Earthy & natural tones)
 val StatusUpcoming = Color(0xFF7D736A)        // Warm taupe / umber
 val StatusReminderActive = Color(0xFFE06D53)  // Warm terracotta
@@ -44,8 +57,3 @@ val Indigo400 = Color(0xFFE8816A)
 val Indigo100 = Color(0xFFFCF0EC)
 val Indigo50 = Color(0xFFFDF7F4)
 
-// Dark Theme Variants (Warm Espresso & Dark Linen)
-val DarkBackground = Color(0xFF141210)
-val DarkSurface = Color(0xFF1E1B18)
-val DarkSurfaceElevated = Color(0xFF282420)
-val DarkOutline = Color(0xFF38332D)

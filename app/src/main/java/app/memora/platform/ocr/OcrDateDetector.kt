@@ -23,7 +23,13 @@ object OcrDateDetector {
             Regex("""\b(?:0?[1-9]|1[0-2])[/.-](?:20\d{2}|2[4-9])\b""").containsMatchIn(normalized) ||
             Regex("""\b202[4-9]\b""").containsMatchIn(normalized) ||
             Regex("""\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\w*[\s,.-]+(?:20\d{2}|\d{2})\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
-            Regex("""\b(?:0?[1-9]|[12]\d|3[01])\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized)
-        return (hasAnchor && hasDateDigits) || (hasDateDigits && Regex("""\b202[5-9]\b""").containsMatchIn(normalized))
+            Regex("""\b(?:0?[1-9]|[12]\d|3[01])\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b""", RegexOption.IGNORE_CASE).containsMatchIn(normalized) ||
+            // Unanchored 2-digit future year short-dates (e.g. "05/10/26", "10/26") — valid without EXP keyword
+            Regex("""\b(?:0?[1-9]|[12]\d|3[01])[/.-](?:0?[1-9]|1[0-2])[/.-](?:2[5-9]|3\d)\b""").containsMatchIn(normalized) ||
+            Regex("""\b(?:0?[1-9]|1[0-2])[/.-](?:2[5-9]|3\d)\b""").containsMatchIn(normalized)
+        val hasUnanchoredShortDate =
+            Regex("""\b(?:0?[1-9]|[12]\d|3[01])[/.-](?:0?[1-9]|1[0-2])[/.-](?:2[5-9]|3\d)\b""").containsMatchIn(normalized) ||
+            Regex("""\b(?:0?[1-9]|1[0-2])[/.-](?:2[5-9]|3\d)\b""").containsMatchIn(normalized)
+        return (hasAnchor && hasDateDigits) || (hasDateDigits && Regex("""\b202[5-9]\b""").containsMatchIn(normalized)) || hasUnanchoredShortDate
     }
 }

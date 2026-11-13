@@ -322,4 +322,50 @@ class RoomDatabaseTest {
         assertNull(reminderRepository.getReminder(invalidReminder.id))
     }
 
+    @Test
+    fun `scan evidence is persisted with compressed image and cascades on memory delete`() = runTest {
+        val memory = Memory(
+            id = "mem-ev-1",
+            title = "Organic Milk",
+            eventType = EventType.EXPIRATION,
+            eventDate = eventDate,
+            timeZoneId = "UTC",
+            createdAt = now,
+            updatedAt = now,
+        )
+        memoryRepository.createMemory(memory)
+
+        val compressedBytes = "fake-compressed-jpeg".toByteArray()
+        val sha256 = app.memora.platform.image.EvidenceHash.sha256Hex(compressedBytes)
+        val evidence = app.memora.data.local.ScanEvidenceEntity(
+            memoryId = memory.id,
+            scanId = "scan-001",
+            extractionSource = "LOCAL_OCR",
+            rawOcrText = "Organic Milk EXP 20/09/2026",
+            localFieldsJson = "{\"EXP\":\"20/09/2026\"}",
+            suggestedTitle = "Organic Milk",
+            suggestedEventType = "EXPIRATION",
+            suggestedEventDate = eventDate.toString(),
+            confidence = 0.92f,
+            finalTitle = memory.title,
+            finalEventType = memory.eventType.name,
+            finalEventDate = memory.eventDate.toString(),
+            compressedImageBytes = compressedBytes,
+            imageSha256 = sha256,
+            createdAtEpochMs = now.toEpochMilli(),
+        )
+        database.scanEvidenceDao().upsert(evidence)
+
+        val stored = database.scanEvidenceDao().getByMemoryId(memory.id)
+        assertNotNull(stored)
+        assertEquals(sha256, stored?.imageSha256)
+        assertTrue(compressedBytes.contentEquals(stored?.compressedImageBytes))
+
+        memoryRepository.deleteMemory(memory.id)
+        assertNull(
+            "Scan evidence must be deleted via foreign key CASCADE when parent memory is deleted",
+            database.scanEvidenceDao().getByMemoryId(memory.id)
+        )
+    }
+
 }

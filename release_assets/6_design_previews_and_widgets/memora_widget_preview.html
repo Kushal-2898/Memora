@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memora Widget — Editorial Senior Designer Spec</title>
+<style>
+  /* MEMORA BESPOKE DESIGN TOKENS
+     - Linen/Warm Paper: #FAF7F2
+     - Warm Charcoal:    #2C2723
+     - Terracotta:       #E06D53
+     - Sage / Forest:    #4A7C59
+     - Ochre Amber:      #C48C2E
+     - Oatmeal Border:   #EDE7DD
+     - Card White:       #FFFFFF
+  */
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+  body {
+    background: #171513;
+    color: #FAF7F2;
+    padding: 40px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  .header { text-align: center; max-width: 580px; margin-bottom: 32px; }
+  .header .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #E06D53; margin-bottom: 8px; }
+  .header h1 { font-size: 26px; font-weight: 700; color: #FAF7F2; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .header p { font-size: 14px; color: #A89F91; line-height: 1.5; }
+
+  /* Phone Shell */
+  .device-frame {
+    width: 392px;
+    background: #201C19;
+    border-radius: 46px;
+    border: 9px solid #332D28;
+    padding: 24px 18px 36px 18px;
+    box-shadow: 0 30px 60px -15px rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+  }
+  .device-frame::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 116px;
+    height: 22px;
+    background: #110E0C;
+    border-radius: 20px;
+  }
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #8C8276;
+    margin-top: 4px;
+    padding: 0 10px;
+    letter-spacing: 0.3px;
+  }
+
+  .label-tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    color: #8C8276;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .label-tag::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #E06D53;
+  }
+
+  /* ================= WIDGET 1: EXPIRING SOON & SAVED VALUE ================= */
+  .glance-card {
+    background: #FFFFFF;
+    border: 1px solid #EDE7DD;
+    border-radius: 26px;
+    padding: 18px 20px;
+    box-shadow: 0 8px 22px rgba(44, 39, 35, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .memora-symbol {
+    width: 24px;
+    height: 24px;
+    background: #FCF0EC;
+    border: 1.2px solid #E06D53;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .brand-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: #2C2723;
+  }
+
+  /* Bespoke Senior-Designer Savings Badge */
+  .savings-badge {
+    background: #EEF4F0;
+    border: 1px solid #D1E2D6;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .savings-badge .val {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #214A34;
+    letter-spacing: -0.2px;
+  }
+
+  /* Items Container */
+  .items-container {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .item-tile {
+    background: #FAF7F2;
+    border: 1px solid #EDE7DD;
+    border-radius: 16px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.15s ease;
+  }
+
+  .item-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Stylized Monoline Vector Glyphs (No emojis) */
+  .vector-glyph {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .glyph-ochre {
+    background: #FAF3E6;
+    border: 1px solid #F0DFBC;
+  }
+  .glyph-terracotta {
+    background: #FCF0EC;
+    border: 1px solid #F5D2C7;
+  }
+  .glyph-sage {
+    background: #EEF4F0;
+    border: 1px solid #CFE2D4;
+  }
+
+  .item-info h4 {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #2C2723;
+    letter-spacing: -0.2px;
+    margin-bottom: 2px;
+  }
+  .item-info p {
+    font-size: 11px;
+    color: #7D736A;
+    font-weight: 500;
+  }
+
+  /* Badges */
+  .state-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 8px;
+    letter-spacing: -0.2px;
+  }
+  .pill-due-today {
+    background: #FAF3E6;
+    color: #C48C2E;
+    border: 1px solid #EEDBB4;
+  }
+  .pill-due-tomorrow {
+    background: #FCF0EC;
+    color: #E06D53;
+    border: 1px solid #F5D2C7;
+  }
+
+  /* Footer Controls */
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 2px;
+  }
+  .footer-sub {
+    font-size: 11.5px;
+    color: #7D736A;
+    font-weight: 500;
+  }
+  .cta-scan {
+    background: #E06D53;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 13px;
+    padding: 8px 15px;
+    font-size: 12.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(224, 109, 83, 0.28);
+  }
+
+  /* ================= WIDGET 2: DAILY REGIMEN & SHELF LIFE ================= */
+  .regimen-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .regimen-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #2C2723;
+    letter-spacing: -0.2px;
+  }
+  .streak-badge {
+    background: #FAF3E6;
+    border: 1px solid #EEDBB4;
+    color: #C48C2E;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* Interactive Regimen Row */
+  .regimen-row {
+    background: #FAF7F2;
+    border: 1px solid #EDE7DD;
+    border-radius: 16px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .regimen-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .check-box-done {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: #4A7C59;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .check-box-todo {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    border: 1.5px solid #D5CCC0;
+    background: #FFFFFF;
+  }
+  .regimen-text h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2C2723;
+    letter-spacing: -0.2px;
+    margin-bottom: 2px;
+  }
+  .regimen-text h4.completed {
+    text-decoration: line-through;
+    color: #A89F91;
+  }
+  .regimen-text p {
+    font-size: 11px;
+    color: #7D736A;
+  }
+  .time-stamp {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4A7C59;
+  }
+  .time-pending {
+    font-size: 11px;
+    font-weight: 600;
+    color: #A89F91;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Production Widget Design System</div>
+  <h1>Memora Glance Widget Specification</h1>
+  <p>Clean, senior-designer aesthetic replacing generic emojis with <strong>custom geometric stroke vectors</strong> and Memora's <strong>Warm Linen & Charcoal</strong> palette.</p>
+</div>
+
+<!-- Phone Device Canvas -->
+<div class="device-frame">
+  <div class="status-bar">
+    <span>09:41</span>
+    <span>5G • 100%</span>
+  </div>
+
+  <div class="label-tag">4x2 Expiring Soon & Waste Prevented</div>
+
+  <!-- Widget 1: Expiring Soon -->
+  <div class="glance-card">
+    <div class="card-header">
+      <div class="brand-group">
+        <img src="data:image/webp;base64,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" style="width: 24px; height: 24px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" alt="Memora App Icon" />
+        <span class="brand-name">Memora</span>
+      </div>
+
+      <!-- Bespoke Shield / Value Protected Indicator (Replaces Sprout) -->
+      <div class="savings-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4A7C59" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <path d="M9 12l2 2 4-4"></path>
+        </svg>
+        <span class="val">$42 Protected</span>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div class="items-container">
+      <!-- Item 1: Dairy / Perishable -->
+      <div class="item-tile">
+        <div class="item-meta">
+          <div class="vector-glyph glyph-ochre">
+            <!-- Stylized Milk Bottle / Carton Monoline -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C48C2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 2h8v3H8z"></path>
+              <path d="M6 8l2-3h8l2 3v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8z"></path>
+              <line x1="6" y1="13" x2="18" y2="13"></line>
+            </svg>
+          </div>
+          <div class="item-info">
+            <h4>Whole Organic Milk</h4>
+            <p>Refrigerator • Top Shelf</p>
+          </div>
+        </div>
+        <span class="state-pill pill-due-today">Due Today</span>
+      </div>
+
+      <!-- Item 2: Pharmaceuticals -->
+      <div class="item-tile">
+        <div class="item-meta">
+          <div class="vector-glyph glyph-terracotta">
+            <!-- Stylized Capsule Pill Monoline -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E06D53" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.5 20.5l10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7z"></path>
+              <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>
+            </svg>
+          </div>
+          <div class="item-info">
+            <h4>Amoxicillin 500mg</h4>
+            <p>Prescription Blister Pack</p>
+          </div>
+        </div>
+        <span class="state-pill pill-due-tomorrow">Due Tomorrow</span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card-footer">
+      <span class="footer-sub">3 more items in pantry</span>
+      <button class="cta-scan">
+        <!-- Minimal Viewfinder Shutter Vector -->
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 8V4h4"></path>
+          <path d="M20 8V4h-4"></path>
+          <path d="M4 16v4h4"></path>
+          <path d="M20 16v4h-4"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span>Scan Item</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="label-tag">4x2 Daily Regimen & PAO Lifecycle</div>
+
+  <!-- Widget 2: Daily Habit Regimen -->
+  <div class="glance-card">
+    <div class="regimen-header">
+      <div class="regimen-title">
+        <!-- Sun Dial / Daily Regimen Vector -->
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2C2723" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+        </svg>
+        <span>Daily Regimen</span>
+      </div>
+
+      <!-- Stylized Momentum Flame Monoline -->
+      <div class="streak-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C48C2E" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+        </svg>
+        <span>12-Day Regimen</span>
+      </div>
+    </div>
+
+    <!-- Regimen List -->
+    <div class="items-container">
+      <!-- Regimen 1: Active Serum (Done) -->
+      <div class="regimen-row">
+        <div class="regimen-left">
+          <div class="check-box-done">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div class="regimen-text">
+            <h4 class="completed">Vitamin C Serum</h4>
+            <p>Opened: 18d ago • PAO 6M</p>
+          </div>
+        </div>
+        <span class="time-stamp">8:30 AM</span>
+      </div>
+
+      <!-- Regimen 2: Daily SPF (Pending) -->
+      <div class="regimen-row">
+        <div class="regimen-left">
+          <div class="check-box-todo"></div>
+          <div class="regimen-text">
+            <h4>Daily SPF 50+ Sunscreen</h4>
+            <p>Morning Application</p>
+          </div>
+        </div>
+        <span class="time-pending">Pending</span>
+      </div>
+
+      <!-- Regimen 3: Supplement (Pending) -->
+      <div class="regimen-row">
+        <div class="regimen-left">
+          <div class="check-box-todo"></div>
+          <div class="regimen-text">
+            <h4>Omega-3 / Multivitamin</h4>
+            <p>With lunch</p>
+          </div>
+        </div>
+        <span class="time-pending">1:00 PM</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

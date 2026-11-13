@@ -41,20 +41,12 @@ object PackagingFeatureDetector {
 
             if (width < 64 || height < 64) return false
 
-            // Sample 8 horizontal bands in the upper 40% and lower 40% (typical crimp positions)
-            val rowsToSample = listOf(
-                height * 10 / 100, height * 15 / 100, height * 20 / 100, height * 25 / 100,
-                height * 75 / 100, height * 80 / 100, height * 85 / 100, height * 90 / 100,
-            )
-
-            val stepX = 2 // Sample every 2nd pixel
-            for (y in rowsToSample) {
-                var ridgeTransitions = 0
+            fun countRidgeTransitions(y: Int): Int {
+                var transitions = 0
                 var prevDiff = 0
                 var lastPixel = 0
 
                 val rowStart = y * rowStride
-                // Scan the central 70% of the row
                 val startX = width * 15 / 100
                 val endX = width * 85 / 100
 
@@ -65,23 +57,39 @@ object PackagingFeatureDetector {
 
                     val pixel = yBuffer.get(index).toInt() and 0xFF
                     val diff = pixel - lastPixel
-                    // Look for sign changes in the derivative (micro-shadow peaks and valleys)
-                    if ((diff > 6 && prevDiff < -6) || (diff < -6 && prevDiff > 6)) {
-                        ridgeTransitions++
+                    // Distinct peak/trough transitions of physical embossed ridges (threshold 12)
+                    if ((diff > 12 && prevDiff < -12) || (diff < -12 && prevDiff > 12)) {
+                        transitions++
                     }
-                    if (Math.abs(diff) > 4) {
+                    if (Math.abs(diff) > 8) {
                         prevDiff = diff
                     }
                     lastPixel = pixel
-                    x += stepX
+                    x += 2
                 }
-
-                // A crimped tube strip has 14-45 periodic teeth/ridges across the sampled width
-                if (ridgeTransitions in 14..55) {
-                    return true
-                }
+                return transitions
             }
-            false
+
+            // 1. Check for full-frame repeating patterns (keyboards, blinds, monitors, grills).
+            // A physical tube crimp is strictly localized at ONE extreme edge (top OR bottom).
+            // The middle body of a tube (35%-65%) is smooth without high-frequency periodic ridges.
+            val midRows = listOf(height * 35 / 100, height * 45 / 100, height * 55 / 100, height * 65 / 100)
+            val midMatches = midRows.count { countRidgeTransitions(it) in 16..50 }
+            if (midMatches >= 2) return false
+
+            // 2. Sample top band (10%, 15%, 20%, 25%) and bottom band (75%, 80%, 85%, 90%)
+            val topRows = listOf(height * 10 / 100, height * 15 / 100, height * 20 / 100, height * 25 / 100)
+            val bottomRows = listOf(height * 75 / 100, height * 80 / 100, height * 85 / 100, height * 90 / 100)
+
+            val topMatches = topRows.count { countRidgeTransitions(it) in 16..50 }
+            val bottomMatches = bottomRows.count { countRidgeTransitions(it) in 16..50 }
+
+            // A physical tube has only ONE sealed crimp edge. If both top AND bottom match,
+            // the entire frame has repeating stripes/keys across both halves (e.g. keyboard).
+            if (topMatches >= 2 && bottomMatches >= 2) return false
+
+            // Exactly one end must display the characteristic periodic crimp texture, while middle remains smooth.
+            (topMatches >= 2 || bottomMatches >= 2) && midMatches == 0
         }.getOrDefault(false)
     }
 
@@ -97,8 +105,25 @@ object PackagingFeatureDetector {
         fun hasWord(word: String): Boolean =
             Regex("""\b${Regex.escape(word)}\b""", RegexOption.IGNORE_CASE).containsMatchIn(rawText)
 
+        // Hardware / keyboard reject filter: ignore periodic crimp false positives from laptop keys
+        val isKeyboardOrComputer = hasWord("ctrl") || hasWord("alt") || hasWord("shift") ||
+            hasWord("enter") || hasWord("caps") || hasWord("tab") || hasWord("fn") ||
+            hasWord("esc") || hasWord("del") || hasWord("ins") ||
+            lower.contains("backspace") || lower.contains("qwerty") ||
+            lower.contains("caps lock") || lower.contains("prtsc") ||
+            lower.contains("inser") || lower.contains("scroll") ||
+            lower.contains("numlk") || lower.contains("pgup") ||
+            lower.contains("pgdn") ||
+            Regex("""\b(?:f[1-9]|f1[0-2])\b""", RegexOption.IGNORE_CASE).containsMatchIn(rawText)
+        if (isKeyboardOrComputer) {
+            return PackagingDetectionResult()
+        }
+
         // 1. Tube / Crimp (Highest priority for embossed same-color packaging)
-        if (isCrimpPresent || lower.contains("ointment") || lower.contains("paste") || lower.contains("cream") || hasWord("gel")) {
+        val hasTubeKeyword = lower.contains("ointment") || lower.contains("paste") ||
+            lower.contains("cream") || hasWord("gel") || hasWord("tube") ||
+            lower.contains("toothpaste") || lower.contains("sunscreen")
+        if (isCrimpPresent || hasTubeKeyword) {
             return PackagingDetectionResult(
                 packagingType = PackagingType.TUBE,
                 dateLocation = DateLocation.CRIMP_SEAL,

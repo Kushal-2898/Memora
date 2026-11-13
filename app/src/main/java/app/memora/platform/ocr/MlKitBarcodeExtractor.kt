@@ -19,7 +19,13 @@ class MlKitBarcodeExtractor(
 
     override suspend fun extractBarcode(imageUri: String): Result<String?> = withContext(Dispatchers.IO) {
         try {
-            val file = File(imageUri)
+            val parsedUri = Uri.parse(imageUri)
+            val filePath = if (parsedUri.scheme == null || parsedUri.scheme == "file") {
+                parsedUri.path ?: imageUri
+            } else {
+                imageUri
+            }
+            val file = File(filePath)
             if (!file.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("Image file not found: $imageUri"))
             }
@@ -45,7 +51,7 @@ class MlKitBarcodeExtractor(
                         }
                     }
                     .addOnCompleteListener {
-                        // scanner.close() // Reusing the client is usually better, but MLKit manages it
+                        runCatching { scanner.close() }
                     }
             }
 

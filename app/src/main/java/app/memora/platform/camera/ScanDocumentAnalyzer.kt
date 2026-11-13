@@ -21,6 +21,8 @@ class ScanDocumentAnalyzer(
     private val onDocumentDetected: (snippet: String) -> Unit,
     private val onDetectionCleared: () -> Unit = {},
     private val onPackagingDetected: ((PackagingDetectionResult) -> Unit)? = null,
+    private val onLowSharpness: (() -> Unit)? = null,
+    private val onLowLightChanged: ((Boolean) -> Unit)? = null,
 ) : ImageAnalysis.Analyzer {
 
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -31,6 +33,9 @@ class ScanDocumentAnalyzer(
     )
     
     private var lastAnalyzedTimestamp = 0L
+    private var lastRefocusTimestamp = 0L
+    private var lastTorchToggleTimestamp = 0L
+    private var isAutoTorchActive = false
     private var consecutiveDetections = 0
     private val isPaused = AtomicBoolean(false)
     private var analysisStartTime = System.currentTimeMillis()
@@ -38,11 +43,13 @@ class ScanDocumentAnalyzer(
     fun pause() {
         isPaused.set(true)
         consecutiveDetections = 0
+        isAutoTorchActive = false
     }
 
     fun resume() {
         isPaused.set(false)
         consecutiveDetections = 0
+        isAutoTorchActive = false
         analysisStartTime = System.currentTimeMillis()
     }
 
@@ -52,10 +59,10 @@ class ScanDocumentAnalyzer(
     }
 
     /**
-     * Calculates image sharpness by taking the absolute variance of adjacent pixels
-     * on the Y (luminance) plane of the YUV_420_888 ImageProxy.
+     * Calculates image sharpness (adjacent pixel variance) and average luminance (0..255)
+     * on the Y plane of the YUV_420_888 ImageProxy in a single pass.
      */
-    private fun calculateSharpness(imageProxy: ImageProxy): Float {
+    private fun calculateSharpnessAndLuminance(imageProxy: ImageProxy): Pair<Float, Float> {
         val plane = imageProxy.planes[0]
         val buffer = plane.buffer
         val rowStride = plane.rowStride
@@ -69,6 +76,7 @@ class ScanDocumentAnalyzer(
         val endY = startY * 3
         
         var sumOfDiffs = 0L
+        var sumOfLum = 0L
         var count = 0
         val step = 4
         
@@ -77,6 +85,7 @@ class ScanDocumentAnalyzer(
             for (x in startX until endX step step) {
                 val index = y * rowStride + x * plane.pixelStride
                 val pixel = buffer.get(index).toInt() and 0xFF
+                sumOfLum += pixel
                 if (prevPixel != -1) {
                     sumOfDiffs += Math.abs(pixel - prevPixel)
                     count++
@@ -85,7 +94,11 @@ class ScanDocumentAnalyzer(
             }
         }
         
-        return if (count > 0) sumOfDiffs.toFloat() / count else 0f
+        return if (count > 0) {
+            (sumOfDiffs.toFloat() / count) to (sumOfLum.toFloat() / count)
+        } else {
+            0f to 128f
+        }
     }
 
     @OptIn(ExperimentalGetImage::class)
@@ -103,23 +116,36 @@ class ScanDocumentAnalyzer(
         }
 
         val currentTime = System.currentTimeMillis()
-        if (currentTime - lastAnalyzedTimestamp < 320L) {
+        if (currentTime - lastAnalyzedTimestamp < 180L) {
             safeClose()
             return
         }
         lastAnalyzedTimestamp = currentTime
 
-        // 1. Adaptive Blur Detection Filter
-        // Starts strict for quick snaps on clean documents, then progressively
-        // loosens to allow shiny/curved surfaces (tin cans, blister packs, bottles).
-        val sharpness = calculateSharpness(imageProxy)
+        // 1. Adaptive Blur & Low-Light Detection Filter
+        val (sharpness, avgLuminance) = calculateSharpnessAndLuminance(imageProxy)
+        if (currentTime - lastTorchToggleTimestamp > 1500L) {
+            if (!isAutoTorchActive && avgLuminance < 52f) {
+                isAutoTorchActive = true
+                lastTorchToggleTimestamp = currentTime
+                onLowLightChanged?.invoke(true)
+            } else if (isAutoTorchActive && avgLuminance > 165f) {
+                isAutoTorchActive = false
+                lastTorchToggleTimestamp = currentTime
+                onLowLightChanged?.invoke(false)
+            }
+        }
         val elapsedSeconds = (currentTime - analysisStartTime) / 1000L
         val blurThreshold = when {
-            elapsedSeconds < 3 -> 10.0f   // Strict: snap clean documents fast
-            elapsedSeconds < 8 -> 7.0f    // Relaxed: allow moderately tricky surfaces
-            else -> 5.0f                  // Permissive: last resort for tin cans, foil
+            elapsedSeconds < 3 -> 8.5f    // Crisp documents snap fast
+            elapsedSeconds < 8 -> 6.5f    // Relaxed: allow moderately tricky surfaces
+            else -> 4.5f                  // Permissive: last resort for tin cans, foil
         }
         if (sharpness < blurThreshold) {
+            if (currentTime - lastRefocusTimestamp > 1400L) {
+                lastRefocusTimestamp = currentTime
+                onLowSharpness?.invoke()
+            }
             if (consecutiveDetections > 0) {
                 consecutiveDetections = 0
                 onDetectionCleared()
@@ -127,8 +153,6 @@ class ScanDocumentAnalyzer(
             safeClose()
             return
         }
-
-        val isCrimp = PackagingFeatureDetector.analyzeLuminanceForCrimp(imageProxy)
 
         val mediaImage = imageProxy.image
         if (mediaImage == null) {
@@ -155,12 +179,13 @@ class ScanDocumentAnalyzer(
             val lineCount = visionText?.textBlocks?.sumOf { it.lines.size } ?: 0
             val hasBarcode = barcodes?.isNotEmpty() == true
 
-            val isCandidate = hasBarcode || DocumentDetectionFilter.isDocumentCandidate(rawText, lineCount, isCrimp)
+            val isCandidate = hasBarcode || DocumentDetectionFilter.isDocumentCandidate(rawText, lineCount, isCrimpDetected = false)
 
             if (isCandidate) {
                 consecutiveDetections++
-                if (consecutiveDetections >= 2) {
-                    val packagingResult = PackagingFeatureDetector.classifyPackaging(rawText, isCrimp)
+                val requiredDetections = if (sharpness >= 9.0f || hasBarcode) 1 else 2
+                if (consecutiveDetections >= requiredDetections) {
+                    val packagingResult = PackagingFeatureDetector.classifyPackaging(rawText, isCrimpPresent = false)
                     onPackagingDetected?.invoke(packagingResult)
                     
                     val barcodeString = barcodes?.firstOrNull()?.rawValue

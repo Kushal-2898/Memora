@@ -28,10 +28,10 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE id = :id LIMIT 1")
     suspend fun getByIdWithReminders(id: String): MemoryWithRemindersRelation?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entity: MemoryEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertReminder(entity: ReminderEntity)
 
     @Transaction

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memora Profile Icon Styles</title>
+<style>
+  :root {
+    --primary-navy: #1E293B;
+    --accent-indigo: #4F46E5;
+    --card-white: #FFFFFF;
+    --surface-cool: #F8FAFC;
+    --border-light: #E2E8F0;
+    --text-caption: #64748B;
+    --status-completed: #10B981;
+    --status-amber: #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body {
+    background: #0F172A;
+    color: #F8FAFC;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .header { text-align: center; margin-bottom: 32px; max-width: 600px; }
+  .header h1 { font-size: 24px; font-weight: 700; color: #FFFFFF; margin-bottom: 8px; }
+  .header p { font-size: 14px; color: #94A3B8; }
+
+  /* Simulated Top App Bar */
+  .preview-bar {
+    width: 100%;
+    max-width: 440px;
+    background: #F8FAFC;
+    border-radius: 20px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+    margin-bottom: 40px;
+    border: 1px solid #E2E8F0;
+  }
+  .preview-bar .title-box h2 { font-size: 20px; font-weight: 700; color: #1E293B; }
+  .preview-bar .title-box p { font-size: 13px; color: #64748B; margin-top: 2px; }
+
+  /* Grid of options */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    width: 100%;
+  }
+  .card {
+    background: #1E293B;
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: #6366F1; }
+  .card.current { border-color: #475569; opacity: 0.85; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+  .badge-current { background: #334155; color: #94A3B8; }
+  .badge-recommended { background: rgba(99, 102, 241, 0.2); color: #818CF8; border: 1px solid #6366F1; }
+  .badge-modern { background: rgba(16, 185, 129, 0.2); color: #34D399; }
+
+  .avatar-stage {
+    background: #F1F5F9;
+    border-radius: 12px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .card-title { font-size: 16px; font-weight: 600; color: #FFFFFF; margin-bottom: 6px; }
+  .card-desc { font-size: 13px; color: #94A3B8; line-height: 1.4; margin-bottom: 12px; }
+  .pros { font-size: 12px; color: #CBD5E1; background: #0F172A; padding: 10px; border-radius: 8px; }
+
+  /* Avatar implementations */
+  /* Common avatar container */
+  .avatar-box {
+    position: relative;
+    cursor: pointer;
+  }
+  .sync-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid #FFFFFF;
+  }
+  .dot-green { background: #10B981; }
+  .dot-amber { background: #F59E0B; }
+
+  /* Style 0: Current */
+  .av-current {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Style 1: Modern Squircle (Premium iOS / Material You) */
+  .av-squircle {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: #EEF2FF;
+    border: 1.5px solid #C7D2FE;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(79, 70, 229, 0.1);
+  }
+
+  /* Style 2: Two-Tone Minimal Outline (Refined Monoline) */
+  .av-twotone {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  /* Style 3: Gradient Pill Avatar (Vibrant Tech) */
+  .av-gradient {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
+  }
+
+  /* Style 4: Soft Duotone Pill / Badge */
+  .av-duotone {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #F1F5F9;
+    border: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Memora Profile Icon Styles</h1>
+  <p>Select your preferred design to replace the generic outline icon on the Home screen header.</p>
+</div>
+
+<!-- Live Mock Header Preview -->
+<div class="preview-bar" id="mockBar">
+  <div class="title-box">
+    <h2>Home</h2>
+    <p>Capture once, never forget</p>
+  </div>
+  <div id="activeAvatarSlot">
+    <!-- Active avatar goes here -->
+    <div class="avatar-box">
+      <div class="av-squircle">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </div>
+      <div class="sync-dot dot-green"></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- Current -->
+  <div class="card current">
+    <div class="card-header">
+      <span class="badge badge-current">CURRENT (Active)</span>
+    </div>
+    <div class="avatar-stage">
+      <div class="avatar-box">
+        <div class="av-current">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="sync-dot dot-amber"></div>
+      </div>
+    </div>
+    <div class="card-title">0. Plain Circle & Raw Outline</div>
+    <div class="card-desc">Standard Material Outlined icon in a plain circular white border. Can feel generic and washed out against the clean background.</div>
+  </div>
+
+  <!-- Style 1: Indigo Squircle (Recommended) -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-recommended">★ RECOMMENDED</span>
+    </div>
+    <div class="avatar-stage">
+      <div class="avatar-box">
+        <div class="av-squircle">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="sync-dot dot-green"></div>
+      </div>
+    </div>
+    <div class="card-title">1. Indigo Tinted Squircle</div>
+    <div class="card-desc">Modern iOS / Material You rounded square (13dp corner radius) tinted with Memora's signature <code>AccentIndigo</code> (#4F46E5).</div>
+    <div class="pros">✔ Matches brand accent<br>✔ High touch target clarity<br>✔ Distinctive from surrounding text</div>
+  </div>
+
+  <!-- Style 2: Two-Tone User Circle -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-modern">SLEEK MINIMAL</span>
+    </div>
+    <div class="avatar-stage">
+      <div class="avatar-box">
+        <div class="av-twotone">
+          <svg width="24" height="24" viewBox="0 0 24 24">
+            <!-- Head -->
+            <circle cx="12" cy="8" r="4" fill="#E0E7FF" stroke="#4F46E5" stroke-width="1.6"/>
+            <!-- Body -->
+            <path d="M5 20c0-3.866 3.134-7 7-7s7 3.134 7 7" fill="#E0E7FF" stroke="#4F46E5" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="sync-dot dot-green"></div>
+      </div>
+    </div>
+    <div class="card-title">2. Premium Duotone Silhouette</div>
+    <div class="card-desc">Dual-fill silhouette with soft lavender/indigo filled surfaces and crisp navy vector edges.</div>
+    <div class="pros">✔ Looks like a finished consumer app<br>✔ Subtle and elegant<br>✔ Never looks like an unfinished placeholder</div>
+  </div>
+
+  <!-- Style 3: Indigo Gradient Avatar -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-modern">BOLD VIBRANT</span>
+    </div>
+    <div class="avatar-stage">
+      <div class="avatar-box">
+        <div class="av-gradient">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="sync-dot dot-green"></div>
+      </div>
+    </div>
+    <div class="card-title">3. Royal Indigo Gradient</div>
+    <div class="card-desc">Full vibrant indigo-to-purple gradient background with crisp white icon, providing strong focal hierarchy.</div>
+    <div class="pros">✔ Catches the eye immediately<br>✔ Premium subscription feel<br>✔ Great contrast on light background</div>
+  </div>
+
+  <!-- Style 4: Account Badge with Monogram / Settings combo -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-modern">FUNCTIONAL</span>
+    </div>
+    <div class="avatar-stage">
+      <div class="avatar-box">
+        <div class="av-duotone">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </div>
+        <div class="sync-dot dot-green"></div>
+      </div>
+    </div>
+    <div class="card-title">4. Refined Settings Gear / Account Hub</div>
+    <div class="card-desc">Since tapping this button opens the Profile, Account Sync & Settings hub, a sleek cog or person-cog icon signals exactly what it opens.</div>
+    <div class="pros">✔ Eliminates user confusion<br>✔ Clean mechanical look<br>✔ Matches utility & productivity tools</div>
+  </div>
+
+</div>
+
+</body>
+</html>

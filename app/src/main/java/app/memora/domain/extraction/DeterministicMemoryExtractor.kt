@@ -22,6 +22,10 @@ class DeterministicMemoryExtractor(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) : MemoryExtractor {
 
+    private val spatialTokenGraphExtractor = SpatialTokenGraphExtractor()
+    private val regulatoryEngine = RegulatoryPackagingRuleEngine()
+    private val tokenClassifier = app.memora.platform.nlp.OnDeviceTokenClassifier()
+
     companion object {
         const val CONFIDENCE_HIGH = 0.9f
         const val CONFIDENCE_LOW = 0.3f
@@ -86,6 +90,24 @@ class DeterministicMemoryExtractor(
 
         // 12. MMYYYY (6 continuous digits without separator common on dot-matrix packaging e.g. "082025" -> 08/2025)
         private val REGEX_MM_YYYY_NO_SEP = Regex("""(?<!\d)\b(0[1-9]|1[0-2])(202[4-9]|203\d)\b(?!\d)""")
+
+        // 13. US Alphanumeric: MMM DD YYYY or MMM DD YY (e.g. "OCT 28 26", "OCT 28 2026", "NOV 14 26", "DEC 04 27")
+        private val REGEX_MMM_DD_YY_OR_YYYY = Regex(
+            """\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,./-]+(0?[1-9]|[12]\d|3[01])(?:[\s,./-]+(20\d{2}|\d{2}))\b""",
+            RegexOption.IGNORE_CASE
+        )
+
+        // 14. Alphanumeric: DD MMM YYYY or DD MMM YY (e.g. "04 DEC 27", "28 OCT 2026")
+        private val REGEX_DD_MMM_YY_OR_YYYY = Regex(
+            """\b(0?[1-9]|[12]\d|3[01])[\s,./-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC|JANUARY|FEBRUARY|MARCH|APRIL|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)[\s,./-]+(20\d{2}|\d{2})\b""",
+            RegexOption.IGNORE_CASE
+        )
+
+        // 15. US Numeric MM/DD/YYYY where day > 12 (e.g. 10/24/2027)
+        private val REGEX_US_MM_DD_YYYY = Regex("""\b(0[1-9]|1[0-2])[-/.](1[3-9]|2\d|3[01])[-/.](20\d{2})\b""")
+
+        // 16. US Numeric MM/DD/YY where day > 12 (e.g. 10/24/26)
+        private val REGEX_US_MM_DD_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[/.-](1[3-9]|2\d|3[01])[/.-](\d{2})\b(?![/.-]\d)""")
 
         fun normalizeForExtraction(rawText: String): String {
             return rawText.lines().joinToString("\n") { line ->
@@ -431,7 +453,14 @@ class DeterministicMemoryExtractor(
         }
 
         val combinedRawText = structuredLines.joinToString("\n") { it.text }
-        return extractLocalResultFromStructuredLines(structuredLines, combinedRawText)
+        val baseResult = extractLocalResultFromStructuredLines(structuredLines, combinedRawText)
+        if (baseResult.title.isNullOrBlank()) {
+            val spatialTitle = spatialTokenGraphExtractor.inferTitle(blocks, frameHeight = 1000)
+            if (!spatialTitle.isNullOrBlank()) {
+                return baseResult.copy(title = spatialTitle)
+            }
+        }
+        return baseResult
     }
 
     private fun deriveNormalizedLineText(line: app.memora.platform.ocr.TextLineInfo): String {
@@ -495,7 +524,11 @@ class DeterministicMemoryExtractor(
             val trimmedLine = line.text.trim()
             if (trimmedLine.isEmpty()) continue
 
-            val matchesOnLine = extractDateMatchesOnLine(trimmedLine)
+            val hasUsUnits = Regex("""(?i)\b(?:NET\s*WT\s*\d+(?:\.\d+)?\s*(?:OZ|LB)|FL\s*OZ|\bOZ\b|\bLB\b)\b""").containsMatchIn(rawText)
+            val hasUsRetail = Regex("""(?i)\b(?:USDA|CVS|WALGREENS|KRAFT|TRADER\s*JOE|WHOLE\s*FOODS|COSTCO|WALMART|TARGET|BEST\s+(?:IF\s+|WHEN\s+)?USED)\b""").containsMatchIn(rawText)
+            val hasIndiaCues = Regex("""(?i)\b(?:MRP|RS\.?|₹|FSSAI|GSTIN)\b""").containsMatchIn(rawText)
+            val isUsDoc = (hasUsUnits || hasUsRetail) && !hasIndiaCues
+            val matchesOnLine = extractDateMatchesOnLine(trimmedLine, isUsDoc)
             if (matchesOnLine.isEmpty()) continue
 
             val sortedMatches = matchesOnLine.sortedBy { it.startIndex }
@@ -512,10 +545,10 @@ class DeterministicMemoryExtractor(
 
                 // If no preceding words on this line, check line immediately above (e.g. Mfg.Date \n 1/2023)
                 val lineIdx = line.lineIndex
-                if (wordsBefore.isEmpty() && lineIdx != null && lineIdx > 0) {
+                if (wordsBefore.isEmpty() && lineIdx > 0) {
                     val prevLine = structuredLines.getOrNull(lineIdx - 1)?.text?.trim()
                     if (!prevLine.isNullOrBlank()) {
-                        wordsBefore.addAll(prevLine.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(3))
+                        wordsBefore.addAll(prevLine.split(Regex("""\s+""")).filter { it.isNotBlank() }.takeLast(5))
                     }
                 }
 
@@ -609,6 +642,7 @@ class DeterministicMemoryExtractor(
                     category = category,
                     domain = domain,
                     temporal = temporal,
+                    evidenceText = evidenceSnippet,
                 )
 
                 allCandidates.add(
@@ -690,6 +724,37 @@ class DeterministicMemoryExtractor(
             }
         }
 
+        // Rule 9: Cosmetics / Skincare PAO (Period After Opening) e.g. "12M", "6M", "24M"
+        val paoRegex = Regex("""\b([369]|12|18|24)\s*M\b""", RegexOption.IGNORE_CASE)
+        val paoMatch = paoRegex.find(rawText)
+        if (paoMatch != null && allCandidates.isEmpty()) {
+            val nMonths = paoMatch.groupValues[1].toLongOrNull()
+            if (nMonths != null && nMonths > 0) {
+                val computedExpiry = today.plusMonths(nMonths)
+                val temporal = computeTemporalStatus(computedExpiry, today)
+                val scoreComps = scoreCandidateComponents(
+                    date = computedExpiry,
+                    hasExplicitDay = true,
+                    category = ContextCategory.EXPIRATION,
+                    domain = domain,
+                    temporal = temporal,
+                    evidenceText = "PAO $nMonths months from opening",
+                )
+                allCandidates.add(
+                    Candidate(
+                        date = computedExpiry,
+                        hasExplicitDay = true,
+                        category = ContextCategory.EXPIRATION,
+                        evidenceText = "PAO $nMonths months from opening",
+                        lineSnippet = paoMatch.value,
+                        temporalStatus = temporal,
+                        scoreComponents = scoreComps,
+                        isDerivedShelfLife = false,
+                    )
+                )
+            }
+        }
+
         // Harmonize dual/multiple packaging dates:
         // On consumer packaging, an earlier date is the manufacturing/packing date,
         // and a later date is the expiration/best-before date.
@@ -718,6 +783,18 @@ class DeterministicMemoryExtractor(
         // Extract structured key-value fields
         val fields = mutableMapOf<String, String>()
         fields["Detected Title"] = detectedTitle
+        paoMatch?.let { match ->
+            val nMonths = match.groupValues[1].toLongOrNull()
+            if (nMonths != null && nMonths > 0) {
+                fields["PAO"] = "$nMonths months"
+            }
+        }
+        monthsMatch?.let { match ->
+            val nMonths = match.groupValues[1].toLongOrNull()
+            if (nMonths != null && nMonths > 0) {
+                fields["Shelf Life"] = "$nMonths months"
+            }
+        }
 
         // Batch / Lot extraction
         val batchRegex = Regex("""\b(?:BATCH(?:\s*NO)?|LOT(?:\s*NO)?|B\.?\s*NO)[.:\s#]+([A-Z0-9\-_/]+)\b""", RegexOption.IGNORE_CASE)
@@ -762,8 +839,11 @@ class DeterministicMemoryExtractor(
             }
         }
 
-        // Convert to ExtractedDateCandidate list with rich audit representation
-        val dateCandidates = allCandidates.map { c ->
+        // Convert to ExtractedDateCandidate list with rich audit representation (deduplicated by date and category)
+        val dateCandidates = allCandidates
+            .sortedByDescending { it.scoreComponents.totalScore }
+            .distinctBy { it.date to it.category }
+            .map { c ->
             val eventType = toEventType(c.category)
             val role = toDateRole(c.category)
             val contextLabel = when (c.category) {
@@ -888,10 +968,19 @@ class DeterministicMemoryExtractor(
         }
 
         val eventType = selectedCandidate?.let { toEventType(it.category) }
-        val finalTitle = if (detectedTitle == "Other") {
+        val rawFinalTitle = if (detectedTitle == "Other") {
             extractProductTitle(rawText, productCategory, eventType)
         } else {
             detectedTitle
+        }
+        val nlpClassification = tokenClassifier.classifyDocument(rawText.lines())
+        val finalTitle = if ((rawFinalTitle == "Other" || rawFinalTitle.isBlank() || rawFinalTitle == "Untitled Memory") && nlpClassification.inferredTitle != null) {
+            nlpClassification.inferredTitle
+        } else {
+            rawFinalTitle
+        }
+        nlpClassification.inferredAmount?.let { amount ->
+            fields.putIfAbsent("Amount", amount)
         }
         val dateType = selectedCandidate?.category?.takeIf { it != ContextCategory.NONE }?.name
         val confidence = when {
@@ -987,6 +1076,7 @@ class DeterministicMemoryExtractor(
         category: ContextCategory,
         domain: DocumentDomain,
         temporal: TemporalStatus,
+        evidenceText: String = "",
     ): CandidateScoreComponents {
         var semanticBase = when (category) {
             ContextCategory.DUE_DATE,
@@ -1009,7 +1099,10 @@ class DeterministicMemoryExtractor(
                 if (category == ContextCategory.DUE_DATE) domainBonus += 500f
             }
             DocumentDomain.PRODUCT_PACKAGING -> {
-                if (category == ContextCategory.EXPIRATION || category == ContextCategory.BEST_BEFORE) domainBonus += 500f
+                if (category == ContextCategory.EXPIRATION || category == ContextCategory.BEST_BEFORE) {
+                    domainBonus += 500f
+                    if (evidenceText.contains("FREEZE BY", ignoreCase = true)) domainBonus += 250f
+                }
             }
             DocumentDomain.WARRANTY -> {
                 if (category == ContextCategory.WARRANTY_END) domainBonus += 500f
@@ -1061,7 +1154,7 @@ class DeterministicMemoryExtractor(
         )
     }
 
-    private fun extractDateMatchesOnLine(line: String): List<ParsedMatch> {
+    private fun extractDateMatchesOnLine(line: String, isUsDoc: Boolean = false): List<ParsedMatch> {
         val matches = mutableListOf<ParsedMatch>()
         val occupiedRanges = mutableListOf<IntRange>()
 
@@ -1103,11 +1196,70 @@ class DeterministicMemoryExtractor(
             }
         }
 
+        val hasLineUsUnits = Regex("""(?i)\b(?:NET\s*WT\s*\d+(?:\.\d+)?\s*(?:OZ|LB)|FL\s*OZ|\bOZ\b|\bLB\b)\b""").containsMatchIn(line)
+        val hasLineIndia = Regex("""(?i)\b(?:MRP|RS\.?|₹|FSSAI|GSTIN)\b""").containsMatchIn(line)
+        val isUsContext = (isUsDoc || hasLineUsUnits) && !hasLineIndia
+
+        // 1.5 Check US MMM DD YYYY/YY (e.g. "OCT 28 26", "OCT 28 2026", "NOV 14 26")
+        REGEX_MMM_DD_YY_OR_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val monthStr = match.groupValues[1].uppercase()
+            val day = match.groupValues[2].toInt()
+            val rawYear = match.groupValues[3].toInt()
+            val year = if (rawYear < 100) 2000 + rawYear else rawYear
+            val month = MONTH_NAME_MAP[monthStr]
+            if (month != null && (rawYear in 24..49 || rawYear in 2024..2049)) {
+                addIfNonOverlapping(range, hasExplicitDay = true) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
+        // 1.6 Check DD MMM YYYY/YY (e.g. "04 DEC 27", "28 OCT 2026")
+        REGEX_DD_MMM_YY_OR_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val day = match.groupValues[1].toInt()
+            val monthStr = match.groupValues[2].uppercase()
+            val rawYear = match.groupValues[3].toInt()
+            val year = if (rawYear < 100) 2000 + rawYear else rawYear
+            val month = MONTH_NAME_MAP[monthStr]
+            if (month != null && (rawYear in 24..49 || rawYear in 2024..2049)) {
+                addIfNonOverlapping(range, hasExplicitDay = true) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
+        // 1.7 Check US Numeric MM/DD/YYYY where day > 12 (e.g. 10/24/2027)
+        REGEX_US_MM_DD_YYYY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val day = match.groupValues[2].toInt()
+            val year = match.groupValues[3].toInt()
+            addIfNonOverlapping(range, hasExplicitDay = true) {
+                LocalDate.of(year, month, day)
+            }
+        }
+
+        // 1.8 Check US Numeric MM/DD/YY where day > 12 (e.g. 10/24/26)
+        REGEX_US_MM_DD_YY.findAll(line).forEach { match ->
+            val range = match.range
+            val month = match.groupValues[1].toInt()
+            val day = match.groupValues[2].toInt()
+            val rawYear = match.groupValues[3].toInt()
+            if (rawYear in 24..49) {
+                val year = 2000 + rawYear
+                addIfNonOverlapping(range, hasExplicitDay = true) {
+                    LocalDate.of(year, month, day)
+                }
+            }
+        }
+
         // 2. Check DD/MM/YYYY
         REGEX_DD_MM_YYYY.findAll(line).forEach { match ->
             val range = match.range
-            val day = match.groupValues[1].toInt()
-            val month = match.groupValues[2].toInt()
+            val day = if (isUsContext) match.groupValues[2].toInt() else match.groupValues[1].toInt()
+            val month = if (isUsContext) match.groupValues[1].toInt() else match.groupValues[2].toInt()
             val year = match.groupValues[3].toInt()
             addIfNonOverlapping(range, hasExplicitDay = true) {
                 LocalDate.of(year, month, day)
@@ -1161,8 +1313,8 @@ class DeterministicMemoryExtractor(
         // 6. Check DD/MM/YY (2-digit year, e.g. 25/08/26)
         REGEX_DD_MM_YY.findAll(line).forEach { match ->
             val range = match.range
-            val day = match.groupValues[1].toInt()
-            val month = match.groupValues[2].toInt()
+            val day = if (isUsContext) match.groupValues[2].toInt() else match.groupValues[1].toInt()
+            val month = if (isUsContext) match.groupValues[1].toInt() else match.groupValues[2].toInt()
             val rawYear = match.groupValues[3].toInt()
             if (rawYear in 24..49) {
                 val year = 2000 + rawYear
@@ -1285,7 +1437,7 @@ class DeterministicMemoryExtractor(
 
         // 1. Manufacturing / batch
         val isMfg = tokens.any { it in mfgTokens || it.startsWith("NFG") || it.startsWith("MFG") || it.startsWith("PKD") || it.startsWith("MFD") || it.startsWith("MTD") } ||
-            clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE") || clean.contains("NFG DATE")
+            clean.contains("MFG DATE") || clean.contains("DATE OF MFG") || clean.contains("DATE OF MANUFACTURE") || clean.contains("PACKED ON") || clean.contains("BORN ON") || clean.contains("PROD DATE") || clean.contains("PRODUCTION DATE") || clean.contains("PKD ON") || clean.contains("MTD DATE") || clean.contains("NFG DATE")
         if (isMfg) return ContextCategory.MFG_DATE
 
         // 2. Purchase / Order / Import
@@ -1321,13 +1473,20 @@ class DeterministicMemoryExtractor(
             return ContextCategory.SUBSCRIPTION_END
         }
 
-        // 8. Best by / best before / use by
-        if (clean.contains("BEST BEFORE") || clean.contains("BEST BY") || clean.contains("USE BY") || clean.contains("USE BEFORE") || "BB" in tokens) {
+        // 8. Best by / best before / use by / US packaging phrases
+        if (clean.contains("BEST BEFORE") || clean.contains("BEST BY") || clean.contains("USE BY") || clean.contains("USE BEFORE") ||
+            clean.contains("USED BY") || clean.contains("USED BEFORE") || clean.contains("IF USED BY") ||
+            clean.contains("BEST IF USED BY") || clean.contains("BEST WHEN USED BY") || clean.contains("BEST IF USED BEFORE") ||
+            clean.contains("SELL BY") || clean.contains("SELL BEFORE") || clean.contains("PULL BY") ||
+            clean.contains("FREEZE BY") || clean.contains("FREEZE BEFORE") || clean.contains("USE OR FREEZE BY") ||
+            clean.contains("GUARANTEED FRESH") || clean.contains("FRESH UNTIL") || "BB" in tokens
+        ) {
             return ContextCategory.BEST_BEFORE
         }
 
         // 9. Expiration and document validity
         if (clean.contains("EXP DATE") || clean.contains("EXPIRY DATE") || clean.contains("EXPIRATION DATE") || clean.contains("VALID UNTIL") || clean.contains("VALID THROUGH") || clean.contains("EXPIRES ON") ||
+            clean.contains("DISCARD AFTER") || clean.contains("DISCARD BY") ||
             tokens.any { it in setOf("EXP", "EXPIRY", "EXPIRES", "EXPIRE", "EXPIRATION", "EXPD") }
         ) {
             return ContextCategory.EXPIRATION
@@ -1379,6 +1538,7 @@ class DeterministicMemoryExtractor(
         BEVERAGE_SPIRIT("Beverage / Spirit"),
         UTILITY_INVOICE("Bill / Invoice"),
         PRODUCT_WARRANTY("Product Warranty"),
+        HOUSEHOLD_CLEANING("Household & Laundry"),
         GENERAL("Other");
     }
 
@@ -1388,6 +1548,11 @@ class DeterministicMemoryExtractor(
             upper.contains("CONSUMER") || upper.contains("METER") || upper.contains("DUE") || upper.contains("PAY")
         if (hasBill && Regex("""\b(ELECTRICITY|BESCOM|MSEB|MSEDCL|TNEB|UPPCL|BSES|TATA POWER|ADANI ELECTRICITY|AIRTEL|JIO|BSNL|VI|VODAFONE|ACT FIBERNET|BROADBAND|FIBER|INDANE|PNG|LPG|BHARAT GAS|HP GAS|ADANI TOTAL GAS|ADANI GAS|MAHANAGAR GAS|MGL|IGL|TORRENT GAS|GAIL|BWSSB|DJB|JAL BOARD|HMWSSB|WATER SUPPLY)\b""").containsMatchIn(upper)) {
             return ProductCategory.UTILITY_INVOICE
+        }
+
+        val isHousehold = Regex("""(?i)\b(detergent|washing\s*machine|laundry|fabric\s*conditioner|stain\s*removal|dishwash|disinfectant|floor\s*cleaner|bleach|safewash|surf\s*excel|ariel|tide|henko|rin|comfort|pril|vim)\b""").containsMatchIn(rawText)
+        if (isHousehold) {
+            return ProductCategory.HOUSEHOLD_CLEANING
         }
 
         val hasNutrition = Regex("""(?i)\b(kcal|Energy|Fat|Protein|Carbohydrate|Nutritional\s*Facts?|Nutrition\s*Information|Serving\s*Size)\b""").containsMatchIn(rawText)
@@ -1400,7 +1565,7 @@ class DeterministicMemoryExtractor(
         }
 
         val hasInci = Regex("""(?i)\b(Aqua|Glycerin|Polysorbate\s*\d*|Carbomer\s*\d*|Perfume|Colorant|Antibacterial|Activated\s*Charcoal|Paraben\s*Free|Sulphate\s*Free|Dimethicone|Cetyl\s*Alcohol)\b""").containsMatchIn(rawText)
-        val hasPcUse = Regex("""(?i)\b(skin|sun-ex|SPF\b|external\s*use|for\s*external\s*use\s*only|balm|handwash|face\s*wash|wash|shampoo|cleanser|moisturizer|sunscreen)\b""").containsMatchIn(rawText)
+        val hasPcUse = Regex("""(?i)\b(skin|sun-ex|SPF\b|external\s*use|for\s*external\s*use\s*only|balm|handwash|face\s*wash|wash|shampoo|cleanser|moisturizer|sunscreen|cream|lotion|serum|cerave|neutrogena|cetaphil)\b""").containsMatchIn(rawText)
         if (hasInci || hasPcUse) {
             return ProductCategory.PERSONAL_CARE
         }
@@ -1451,11 +1616,12 @@ class DeterministicMemoryExtractor(
         val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }.take(15)
         for (line in lines) {
             val lu = line.uppercase()
-            if (Regex("""\b(?:MRP|RS\b|₹|INCL|TAXES|NET\s*QTY|NET\s*WT|NET\s*CONTENT|BATCH|B\.?NO|LOT\b|LIC\b|FSSAI|MFG|PKD|EXP|USE\s*BY|BEST\s*BEFORE|BARCODE)\b""").containsMatchIn(lu)) continue
+            if (Regex("""\b(?:MRP|RS\b|₹|INCL|TAXES|NET\s*QTY|NET\s*WT|NET\s*CONTENT|BATCH|B\.?NO|LOT\b|LIC\b|FSSAI|MFG|PKD|EXP|USE\s*BY|USED\s*BY|BEST\s*BEFORE|BEST\s*IF\s*USED|SELL\s*BY|FREEZE\s*BY|GUARANTEED\s*FRESH|BARCODE)\b""").containsMatchIn(lu)) continue
             if (Regex("""\b(?:ROAD|STREET|NAGAR|LTD|PVT|LIMITED|EMAIL|WWW\.|COM|CALL|TOLL|CARE|CUSTOMER|DISTRICT|STATE|FLOOR|HOUSE|IMPORT|EXPORT)\b""").containsMatchIn(lu)) continue
             if (Regex("""\b(?:\d+\s*(?:MG|MCG|ML)|TABLETS?|CAPSULES?|SYRUP|OINTMENT|GEL|IP|BP|USP|PARACETAMOL|AMOXICILLIN|HANDWASH|BALM|RICE|BASMATI|FOOTWEAR|INVOICE|BILL)\b""").containsMatchIn(lu)) continue
             if (Regex("""\b\d{6}\b""").containsMatchIn(line)) continue
             if (line.count { it == ',' } >= 2 || lu.startsWith("INGREDIENTS")) continue
+            if (Regex("""(?i)\b(BENEFITS?|MULTIPLE|DIRECTIONS?|INSTRUCTIONS?|COOKING|SAFETY|NUTRITION|SERVING|FOR\s*EXTERNAL\s*USE|POUR\s*CONTENTS|USAGE)\b""").containsMatchIn(lu)) continue
             if (line.length < 3 || line.length > 35) continue
 
             val cleaned = line.replace(Regex("""^[^A-Za-z0-9]+|[^A-Za-z0-9)]+$"""), "").trim()
@@ -1467,6 +1633,9 @@ class DeterministicMemoryExtractor(
                 }
             }
         }
+
+        val knownBrandMatch = Regex("""(?i)\b(Wipro\s*Safewash|Safewash|Wipro|Surf\s*Excel|Ariel|Tide|Rin|Henko|Vim|Pril|Comfort|Godrej|Amul|Nandini|Nestle|Dettol|Lifebuoy|Patanjali|Himalaya|Colgate|Pepsodent|Sensodyne|Dabur|Parachute|Nivea|Vaseline|Pond'?s|Dove)\b""").find(rawText)
+        val matchedKnownBrand = knownBrandMatch?.value?.trim()?.split(" ")?.joinToString(" ") { word -> word.replaceFirstChar { c -> c.uppercase() } }
 
         val detectedProductType: String? = when (category) {
             ProductCategory.MEDICINE -> "Medicine"
@@ -1484,6 +1653,13 @@ class DeterministicMemoryExtractor(
                     else -> "Grocery"
                 }
             }
+            ProductCategory.HOUSEHOLD_CLEANING -> {
+                when {
+                    Regex("""(?i)\b(dishwash|vim|pril)\b""").containsMatchIn(rawText) -> "Dishwash Cleaner"
+                    Regex("""(?i)\b(floor|surface|disinfectant|lysol|domex)\b""").containsMatchIn(rawText) -> "Surface Cleaner"
+                    else -> "Laundry Detergent"
+                }
+            }
             ProductCategory.BEVERAGE_SPIRIT -> "Beverage / Spirit"
             ProductCategory.PRODUCT_WARRANTY -> "Product Warranty"
             ProductCategory.GENERAL -> null
@@ -1491,8 +1667,8 @@ class DeterministicMemoryExtractor(
         }
 
         val fallbackType = eventType?.takeIf { it != EventType.OTHER }?.let { "General ${it.name.lowercase().replaceFirstChar { c -> c.uppercase() }}" } ?: "Other"
-        val brandCandidate = if (detectedProductType != null) null else extractedBrand
-        val displayTitle = brandCandidate ?: detectedProductType ?: fallbackType
+        val brandCandidate = if (detectedProductType != null) null else (matchedKnownBrand ?: extractedBrand)
+        val displayTitle = detectedProductType ?: brandCandidate ?: fallbackType
         return displayTitle
     }
 

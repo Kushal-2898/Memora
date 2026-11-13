@@ -8,6 +8,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,6 +109,10 @@ fun ScannerScreen(
     var showDiscardSheetDialog by remember { mutableStateOf(false) }
     var extractedCandidate by remember { mutableStateOf<ExtractedMemoryCandidate?>(null) }
 
+    val isProUser = viewModel.isProUser
+    val canScan = true
+    var showQuotaDialog by remember { mutableStateOf(false) }
+
     // Listen to ViewModel navigation events (e.g. on memory save -> Home)
     LaunchedEffect(viewModel) {
         viewModel.navigationEvents.collect { event ->
@@ -119,6 +128,9 @@ fun ScannerScreen(
     ) { uri ->
         val source = pendingSource ?: CaptureSource.GALLERY
         viewModel.onImageSelected(uri?.toString(), source)
+        if (uri == null && uiState is CaptureUiState.ExtractionReady) {
+            showBottomSheet = true
+        }
     }
 
     // Camera permission launcher
@@ -156,9 +168,11 @@ fun ScannerScreen(
                 viewModel.rescan()
             }
             is CaptureUiState.CameraActive -> {
+                viewModel.cancelCapture()
                 onNavigateBack()
             }
             else -> {
+                viewModel.cancelCapture()
                 onNavigateBack()
             }
         }
@@ -192,12 +206,24 @@ fun ScannerScreen(
                 cameraManager = cameraManager,
                 imageStorage = imageStorage,
                 onPhotoCaptured = { file ->
+                    if (!canScan) {
+                        showQuotaDialog = true
+                        file.delete()
+                        return@CameraPreviewView
+                    }
                     val capturedImage = imageStorage.createCapturedImageFromFile(file, CaptureSource.CAMERA)
                     viewModel.onScanAcquired(capturedImage)
                 },
                 onCaptureError = viewModel::onCaptureError,
-                onBack = onNavigateBack,
+                onBack = {
+                    viewModel.cancelCapture()
+                    onNavigateBack()
+                },
                 onOpenGallery = {
+                    if (!canScan) {
+                        showQuotaDialog = true
+                        return@CameraPreviewView
+                    }
                     pendingSource = CaptureSource.GALLERY
                     pickVisualMediaLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -206,7 +232,35 @@ fun ScannerScreen(
                 onPackagingIdentified = { packagingResult ->
                     viewModel.onPackagingDetected(packagingResult)
                 },
-                isAnalysisPaused = isAnalysisPaused,
+                isAnalysisPaused = isAnalysisPaused || !canScan,
+                topEndContent = {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isProUser) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .clickable { showQuotaDialog = true }
+                            .padding(end = 4.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (isProUser) Icons.Filled.AutoAwesome else Icons.Filled.DocumentScanner,
+                                contentDescription = null,
+                                tint = if (isProUser) Color(0xFFFFD54F) else Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = if (isProUser) "Pro · AI Scan" else "Free · On-Device OCR",
+                                style = MemoraTypography.caption,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -342,6 +396,8 @@ fun ScannerScreen(
                     onRescan = { viewModel.rescan() },
                     onEnterManually = { viewModel.startManualEntry(state.capturedImage) },
                     onDismiss = { viewModel.rescan() },
+                    isProUser = isProUser,
+                    onRequestProUpgrade = { showQuotaDialog = true },
                 )
             }
 
@@ -379,8 +435,16 @@ fun ScannerScreen(
                     message = state.message,
                     canRetry = state.canRetry,
                     canEnterManually = state.canEnterManually,
-                    onEnterManually = if (state.capturedImage != null) {
-                        { viewModel.startManualEntry(state.capturedImage) }
+                    onEnterManually = if (state.canEnterManually || state.capturedImage != null) {
+                        {
+                            val fallbackImage = state.capturedImage ?: app.memora.domain.model.CapturedImage(
+                                uri = "",
+                                source = CaptureSource.CAMERA,
+                                capturedAt = java.time.Instant.now(),
+                                mimeType = "image/jpeg",
+                            )
+                            viewModel.startManualEntry(fallbackImage)
+                        }
                     } else null,
                     onDismiss = {
                         viewModel.dismissError()
@@ -394,8 +458,9 @@ fun ScannerScreen(
     if (showBottomSheet) {
         ExtractedMemoryBottomSheet(
             candidate = extractedCandidate,
-            onSave = { title, eventType, eventDate, remindDaysBefore ->
-                viewModel.saveMemory(title, eventType, eventDate, remindDaysBefore)
+            defaultReminderTime = viewModel.defaultReminderTime,
+            onSave = { title, eventType, eventDate, remindDaysBefore, reminderTime ->
+                viewModel.saveMemory(title, eventType, eventDate, remindDaysBefore, reminderTime)
                 showBottomSheet = false
             },
             onRetake = {
@@ -470,6 +535,34 @@ fun ScannerScreen(
             containerColor = CardWhite,
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.testTag("discard_sheet_confirmation_dialog"),
+        )
+    }
+
+    if (showQuotaDialog) {
+        AlertDialog(
+            onDismissRequest = { showQuotaDialog = false },
+            containerColor = CardWhite,
+            title = {
+                Text(
+                    text = if (isProUser) "Memora Pro Active" else "Memora Pro Required",
+                    style = MemoraTypography.title,
+                )
+            },
+            text = {
+                Text(
+                    text = if (isProUser) {
+                        "You have an active Memora Pro membership with AI smart scan analysis, custom categories, and priority reminders."
+                    } else {
+                        "On-device OCR scanning is unlimited and free.\n\nCloud AI deep analysis ('Analyze with AI') is a Memora Pro feature. Upgrade to Memora Pro in Settings to unlock AI scan refinement and custom categories."
+                    },
+                    style = MemoraTypography.body,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showQuotaDialog = false }) {
+                    Text("Got it")
+                }
+            }
         )
     }
 }

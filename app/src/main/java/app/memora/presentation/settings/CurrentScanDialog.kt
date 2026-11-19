@@ -370,10 +370,10 @@ fun CurrentScanDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = PrimaryNavy,
-                        contentColor = CardWhite,
+                        contentColor = Color.White,
                     ),
                 ) {
-                    Text("Close Diagnostics", fontWeight = FontWeight.SemiBold)
+                    Text("Close Diagnostics", color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

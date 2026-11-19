@@ -118,6 +118,7 @@ class ProfileNavigationTest {
         // Dialog should be visible
         composeTestRule.onNodeWithTag("notification_permission_dialog").assertIsDisplayed()
         composeTestRule.onNodeWithText("Enable Notifications").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Allow Notifications").assertIsDisplayed()
         composeTestRule.onNodeWithTag("btn_allow_notifications").assertIsDisplayed()
         composeTestRule.onNodeWithTag("btn_dismiss_notifications").assertIsDisplayed()
 

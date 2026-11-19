@@ -93,14 +93,15 @@ fun NotificationPermissionDialog(
                     containerColor = PrimaryNavy,
                     contentColor = Color.White,
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp)
+                    .height(48.dp)
                     .testTag("btn_allow_notifications"),
             ) {
                 Text(
                     text = "Allow Notifications",
+                    color = Color.White,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                 )

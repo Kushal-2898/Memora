@@ -22,6 +22,10 @@ data class GoogleSignInAccount(
 class GoogleAuthClient(
     private val appContext: Context? = null,
 ) {
+    companion object {
+        const val DEFAULT_WEB_CLIENT_ID = "40262037658-vkd5cf8j79dlv1d6c6tfmft7brvfreic.apps.googleusercontent.com"
+    }
+
     /**
      * Checks if Google Sign-In has a valid Web Client ID configured.
      */
@@ -33,7 +37,9 @@ class GoogleAuthClient(
     fun resolveServerClientId(context: Context, serverClientId: String = ""): String {
         if (serverClientId.isNotBlank()) return serverClientId
         val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-        return if (resId != 0) runCatching { context.getString(resId) }.getOrDefault("") else ""
+        val dynamicId = if (resId != 0) runCatching { context.getString(resId) }.getOrDefault("") else ""
+        if (dynamicId.isNotBlank()) return dynamicId
+        return DEFAULT_WEB_CLIENT_ID
     }
 
     fun canLaunch(context: Context, serverClientId: String = ""): Boolean {

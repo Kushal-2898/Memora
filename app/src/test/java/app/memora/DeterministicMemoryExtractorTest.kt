@@ -777,6 +777,60 @@ class DeterministicMemoryExtractorTest {
         val res2 = extractor.extractLocalResult("EXP 25/O9/2026")
         assertEquals(LocalDate.of(2026, 9, 25), res2.selectedEventDate)
     }
+
+    @Test
+    fun `cross-line packaging dates earlier 24 Jun 2026 and later 23 Mar 2027 selects later expiry`() {
+        val rawText = """
+            Tetley Lemon Twist Green Tea
+            Date of Packaging: 24/06/2026
+            Use By: 23/03/2027
+            BN: 24RR22C
+        """.trimIndent()
+        val res = extractor.extractLocalResult(rawText)
+        assertEquals(LocalDate.of(2027, 3, 23), res.selectedEventDate)
+        assertEquals(EventType.BEST_BEFORE, res.eventType)
+        assertFalse(res.isAmbiguous)
+
+        val mfgCandidate = res.dateCandidates.find { it.eventDate == LocalDate.of(2026, 6, 24) }
+        assertNotNull(mfgCandidate)
+        assertEquals("Manufacture date", mfgCandidate?.context)
+    }
+
+    @Test
+    fun `cross-line packaging dates 23 Aug 2026 and 21 May 2027 selects later expiry`() {
+        val rawText = """
+            Organic Rolled Oats
+            MFG: 23/08/2026
+            EXP: 21/05/2027
+        """.trimIndent()
+        val res = extractor.extractLocalResult(rawText)
+        assertEquals(LocalDate.of(2027, 5, 21), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+        assertFalse(res.isAmbiguous)
+    }
+
+    @Test
+    fun `regulatory disclaimer lines with SPCB and 2019 are excluded from dates`() {
+        val rawText = """
+            Tetley Lemon Twist Green Tea
+            NET QUANTITY: 1 UNIT
+            Date of Packaging:
+            Use By:
+            BN:
+            24-03/26
+            23-0627
+            24RR22C
+            Mfd. by: Uflex Ltd. Jammu, Unit 2: 5PCB/4ighl /1 904752021 ef 2019 d:1142:2019
+        """.trimIndent()
+        val res = extractor.extractLocalResult(rawText)
+        assertEquals(LocalDate.of(2027, 6, 23), res.selectedEventDate)
+        assertEquals(EventType.EXPIRATION, res.eventType)
+        assertFalse(res.isAmbiguous)
+
+        // Verify regulatory certificate year 2019 was NOT extracted as a candidate
+        val year2019 = res.dateCandidates.find { it.eventDate?.year == 2019 }
+        assertNull(year2019)
+    }
 }
 
 

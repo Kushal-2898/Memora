@@ -109,6 +109,17 @@ class DeterministicMemoryExtractor(
         // 16. US Numeric MM/DD/YY where day > 12 (e.g. 10/24/26)
         private val REGEX_US_MM_DD_YY = Regex("""(?<!\d[-/.])\b(0[1-9]|1[0-2])[/.-](1[3-9]|2\d|3[01])[/.-](\d{2})\b(?![/.-]\d)""")
 
+        private val REGULATORY_DISCLAIMER_REGEX = Regex(
+            """(?i)\b(?:SPCB|PCB|POLLUTION|FSSAI|LIC(?:\s*NO|\.|\b)|TRADEMARK|RECYCLE|PIN\s*CODE|CUSTOMER\s*CARE|HELPLINE|TOLL\s*FREE|CIN(?:\s*NO|\.|\b)|GSTIN)\b"""
+        )
+
+        private fun isRegulatoryDisclaimerLine(line: String): Boolean {
+            val upper = line.uppercase()
+            val hasDateAnchor = upper.contains("EXP") || upper.contains("USE BY") || upper.contains("BEST BEFORE") ||
+                upper.contains("MFG") || upper.contains("MFD") || upper.contains("PKD")
+            return !hasDateAnchor && REGULATORY_DISCLAIMER_REGEX.containsMatchIn(line)
+        }
+
         fun normalizeForExtraction(rawText: String): String {
             return rawText.lines().joinToString("\n") { line ->
                 var l = line.trim().replace(Regex("\\s+"), " ")
@@ -523,6 +534,7 @@ class DeterministicMemoryExtractor(
         for (line in structuredLines) {
             val trimmedLine = line.text.trim()
             if (trimmedLine.isEmpty()) continue
+            if (isRegulatoryDisclaimerLine(trimmedLine)) continue
 
             val hasUsUnits = Regex("""(?i)\b(?:NET\s*WT\s*\d+(?:\.\d+)?\s*(?:OZ|LB)|FL\s*OZ|\bOZ\b|\bLB\b)\b""").containsMatchIn(rawText)
             val hasUsRetail = Regex("""(?i)\b(?:USDA|CVS|WALGREENS|KRAFT|TRADER\s*JOE|WHOLE\s*FOODS|COSTCO|WALMART|TARGET|BEST\s+(?:IF\s+|WHEN\s+)?USED)\b""").containsMatchIn(rawText)
@@ -839,6 +851,55 @@ class DeterministicMemoryExtractor(
             }
         }
 
+        // Cross-line packaging date pairing: on consumer product packaging, if 2 distinct dates exist
+        // within a realistic shelf-life gap (1 day to 5 years), the earlier date is always manufacturing
+        // and the later date is always expiration.
+        if (domain == DocumentDomain.PRODUCT_PACKAGING) {
+            val nonBatchCandidates = allCandidates.filter {
+                !it.evidenceText.contains(Regex("""(?i)\b(?:BATCH|LOT|B\.?NO)\b"""))
+            }
+            val distinctDates = nonBatchCandidates.map { it.date }.distinct().sorted()
+            if (distinctDates.size >= 2) {
+                val earliest = distinctDates.first()
+                val latest = distinctDates.last()
+                val daysGap = java.time.temporal.ChronoUnit.DAYS.between(earliest, latest)
+                if (daysGap in 1..1825) {
+                    for (idx in allCandidates.indices) {
+                        val c = allCandidates[idx]
+                        if (c.date == earliest && c.category in setOf(ContextCategory.NONE, ContextCategory.EXPIRATION, ContextCategory.BEST_BEFORE)) {
+                            val hasExplicitExpKeyword = c.evidenceText.contains(Regex("""(?i)\b(?:EXP|EXPIRY|USE\s*BY|BEST\s*BEFORE)\b"""))
+                            val latestHasExplicitExp = nonBatchCandidates.any { it.date == latest && it.evidenceText.contains(Regex("""(?i)\b(?:EXP|EXPIRY|USE\s*BY|BEST\s*BEFORE)\b""")) }
+                            if (!hasExplicitExpKeyword || latestHasExplicitExp) {
+                                allCandidates[idx] = c.copy(
+                                    category = ContextCategory.MFG_DATE,
+                                    scoreComponents = scoreCandidateComponents(
+                                        date = c.date,
+                                        hasExplicitDay = c.hasExplicitDay,
+                                        category = ContextCategory.MFG_DATE,
+                                        domain = domain,
+                                        temporal = c.temporalStatus,
+                                        evidenceText = c.evidenceText,
+                                    )
+                                )
+                            }
+                        } else if (c.date == latest && c.category == ContextCategory.MFG_DATE) {
+                            allCandidates[idx] = c.copy(
+                                category = ContextCategory.EXPIRATION,
+                                scoreComponents = scoreCandidateComponents(
+                                    date = c.date,
+                                    hasExplicitDay = c.hasExplicitDay,
+                                    category = ContextCategory.EXPIRATION,
+                                    domain = domain,
+                                    temporal = c.temporalStatus,
+                                    evidenceText = c.evidenceText,
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Convert to ExtractedDateCandidate list with rich audit representation (deduplicated by date and category)
         val dateCandidates = allCandidates
             .sortedByDescending { it.scoreComponents.totalScore }
@@ -942,7 +1003,7 @@ class DeterministicMemoryExtractor(
 
                         val bothInSameTemporalDirection = (top1.date >= today && runnerUp.date >= today) || (top1.date < today && runnerUp.date < today)
                         // If one is past and one is future, or on packaging, earlier is MFG/start and later is actionable EXP/end
-                        val isEarlierLaterPair = bothUnlabelled &&
+                        val isEarlierLaterPair = (bothUnlabelled || domain == DocumentDomain.PRODUCT_PACKAGING) &&
                             (top1.date != runnerUp.date) && (!bothInSameTemporalDirection || domain == DocumentDomain.PRODUCT_PACKAGING)
 
                         val isGenuinelyAmbiguous = !isEarlierLaterPair && (sameLabeledRole || (bothUnlabelled && bothInSameTemporalDirection)) && scoreDiff < 200f

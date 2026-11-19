@@ -97,6 +97,7 @@ class OnboardingFlowTest {
     @Test
     fun returningUser_bypassesOnboarding_directlyToHome() {
         preferences.setOnboardingCompleted(true)
+        preferences.setAuth("uid_123", "user@test.com", "Test User", null)
         assertTrue(preferences.hasCompletedOnboarding())
 
         composeTestRule.setContent {
@@ -120,6 +121,34 @@ class OnboardingFlowTest {
     }
 
     @Test
+    fun signedOutUser_showsOnboarding_andSkipNavigatesToAccountScreen() {
+        preferences.setOnboardingCompleted(false)
+        preferences.clearAuth()
+
+        composeTestRule.setContent {
+            MemoraTheme {
+                MemoraNavHost(
+                    appContainer = appContainer,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Onboarding is displayed
+        composeTestRule.onNodeWithTag("onboarding_screen").assertIsDisplayed()
+        // Tap Skip on Screen 1 to jump straight to Account screen
+        composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_google_signin").assertIsDisplayed()
+    }
+
+    @Test
     fun nextButton_advancesThroughAllScreensInSequence() {
         var completed = false
         composeTestRule.setContent {
@@ -127,6 +156,7 @@ class OnboardingFlowTest {
                 OnboardingScreen(
                     onComplete = { completed = true },
                     onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
                 )
             }
         }
@@ -178,13 +208,13 @@ class OnboardingFlowTest {
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_google_signin").assertIsDisplayed()
 
         // Should not have completed yet
         assertFalse(completed)
 
-        // Tap Continue on Screen 7 to complete
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
+        // Tap Continue with Google on Screen 7 to complete
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.waitForIdle()
         assertTrue(completed)
     }
@@ -261,26 +291,43 @@ class OnboardingFlowTest {
     }
 
     @Test
-    fun skipButton_invokesOnCompleteImmediately() {
+    fun skipButton_fromScreen1_navigatesToAccountScreen() {
         var completed = false
         composeTestRule.setContent {
             MemoraTheme {
-                OnboardingScreen(onComplete = { completed = true })
+                OnboardingScreen(
+                    onComplete = { completed = true },
+                    onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
+                )
             }
         }
 
         assertFalse(completed)
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Navigates directly to Screen 7 (Account Creation)
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+        assertFalse(completed)
+
+        // Tapping Google Sign-in completes onboarding
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.waitForIdle()
         assertTrue(completed)
     }
 
     @Test
-    fun skipFromLaterScreen_invokesOnCompleteImmediately() {
+    fun skipFromLaterScreen_navigatesToAccountScreen() {
         var completed = false
         composeTestRule.setContent {
             MemoraTheme {
-                OnboardingScreen(onComplete = { completed = true })
+                OnboardingScreen(
+                    onComplete = { completed = true },
+                    onboardingPreferences = preferences,
+                    authRepository = appContainer.authRepository,
+                )
             }
         }
 
@@ -293,8 +340,12 @@ class OnboardingFlowTest {
 
         // Tap skip
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
-        assertTrue(completed)
+
+        // Screen 7 is shown
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+        assertFalse(completed)
     }
 
     @Test
@@ -323,9 +374,9 @@ class OnboardingFlowTest {
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        // On Screen 7, tap Continue to complete
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
+        // On Screen 7, tap Continue with Google to complete
+        composeTestRule.onNodeWithTag("btn_google_signin").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
@@ -350,7 +401,16 @@ class OnboardingFlowTest {
             }
         }
 
+        // Tap skip on Screen 1 -> navigates to Screen 7
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Screen 7 is displayed
+        composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
+
+        // Tap Continue with Google
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
@@ -367,7 +427,10 @@ class OnboardingFlowTest {
         var completeCount = 0
         composeTestRule.setContent {
             MemoraTheme {
-                OnboardingScreen(onComplete = { completeCount++ })
+                OnboardingScreen(
+                    onComplete = { completeCount++ },
+                    authRepository = appContainer.authRepository,
+                )
             }
         }
 
@@ -383,16 +446,16 @@ class OnboardingFlowTest {
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        // Tap Continue rapidly on Screen 7
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
-        composeTestRule.onNodeWithTag("onboarding_btn_continue").performClick()
+        // Tap Continue with Google rapidly on Screen 7
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.waitForIdle()
 
         assertEquals(1, completeCount)
     }
 
     @Test
-    fun screen7_skip_completesOnboardingAsGuest() {
+    fun screen7_skipIsRemoved_andGoogleSignInMandatory() {
         var completed = false
         composeTestRule.setContent {
             MemoraTheme {
@@ -416,14 +479,17 @@ class OnboardingFlowTest {
         composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
-        // Tap Skip on Screen 7
-        composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        // Verify Skip and unauthenticated Continue are NOT present on Screen 7
+        composeTestRule.onNodeWithTag("onboarding_btn_skip").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("onboarding_btn_continue").assertDoesNotExist()
+
+        // Authenticate with Google
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.waitForIdle()
 
         assertTrue(completed)
         assertTrue(preferences.hasCompletedOnboarding())
-        // User remains unauthenticated (Guest)
-        assertNull(preferences.getAuthUid())
+        assertNotNull(preferences.getAuthUid())
     }
 
     @Test
@@ -490,8 +556,8 @@ class OnboardingFlowTest {
         // Verify we are now on Screen 7 ("Create your account" title displayed)
         composeTestRule.onNodeWithText("Create your account").assertIsDisplayed()
 
-        // Tap Skip on Screen 7
-        composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        // Tap Continue with Google on Screen 7
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
         composeTestRule.waitForIdle()
 
         // Verify completed to Home (not addFirstMemory)

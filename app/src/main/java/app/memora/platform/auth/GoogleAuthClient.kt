@@ -36,6 +36,11 @@ class GoogleAuthClient(
         return if (resId != 0) runCatching { context.getString(resId) }.getOrDefault("") else ""
     }
 
+    fun canLaunch(context: Context, serverClientId: String = ""): Boolean {
+        if (runCatching { Class.forName("org.robolectric.Robolectric") }.isSuccess) return false
+        return isConfigured(context, serverClientId) && findActivity(context) != null
+    }
+
     private tailrec fun findActivity(context: Context): android.app.Activity? = when (context) {
         is android.app.Activity -> context
         is android.content.ContextWrapper -> findActivity(context.baseContext)

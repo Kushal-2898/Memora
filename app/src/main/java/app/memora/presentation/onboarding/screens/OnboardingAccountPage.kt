@@ -76,8 +76,6 @@ import app.memora.ui.theme.WarmPaperBeige
 fun OnboardingAccountPage(
     onContinueWithGoogle: () -> Unit,
     onContinueWithEmail: () -> Unit,
-    onContinue: () -> Unit,
-    onSkip: () -> Unit,
     onShowPrivacyPolicy: () -> Unit = {},
     onShowTerms: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -199,26 +197,13 @@ fun OnboardingAccountPage(
         Column(
             modifier = Modifier.fillMaxSize(),
         ) {
-            // Top Section (Upper Canopy): Skip button + Logo + Titles (~42% height)
+            // Top Section (Upper Canopy): Logo + Titles (~42% height)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.42f)
                     .padding(top = statusBarPadding.calculateTopPadding()),
             ) {
-                // Top-right Skip Button
-                Text(
-                    text = "Skip",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFFFFDF9),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(end = 20.dp, top = 8.dp)
-                        .testTag("onboarding_btn_skip")
-                        .clickable { onSkip() },
-                )
-
                 // Canopy Center Content
                 Column(
                     modifier = Modifier
@@ -425,42 +410,6 @@ fun OnboardingAccountPage(
                         modifier = Modifier.weight(1f),
                     )
                 }
-
-                // Bottom Primary CTA: Continue
-                Button(
-                    onClick = onContinue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .testTag("onboarding_btn_continue"),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DeepForestGreen,
-                        contentColor = Color.White,
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Text(
-                            text = "Continue",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 // Legal Disclaimer Footer
                 Row(

@@ -165,6 +165,7 @@ class DefaultAuthRepository(
     override suspend fun signOut(): Result<Unit> = runCatching {
         firebaseAuth?.signOut()
         onboardingPreferences?.clearAuth()
+        onboardingPreferences?.setOnboardingCompleted(false)
         _currentUser.value = null
         onSignOutCleanup?.invoke()
     }
@@ -172,6 +173,7 @@ class DefaultAuthRepository(
     override suspend fun deleteAccount(): Result<Unit> = runCatching {
         firebaseAuth?.currentUser?.delete()?.await()
         onboardingPreferences?.clearAuth()
+        onboardingPreferences?.setOnboardingCompleted(false)
         _currentUser.value = null
         onSignOutCleanup?.invoke()
     }

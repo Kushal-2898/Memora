@@ -119,7 +119,9 @@ fun ExtractedMemoryBottomSheet(
 
     val today = remember { LocalDate.now() }
     val candidateDate = candidate?.suggestedEventDate
-    val futureAlt = candidate?.alternatives?.firstOrNull { it.eventDate != null && !it.eventDate.isBefore(today) }
+    val futureAlt = candidate?.alternatives
+        ?.filter { it.eventDate != null && !it.eventDate.isBefore(today) }
+        ?.maxByOrNull { it.eventDate!! }
     val initialDate = when {
         candidateDate != null && !candidateDate.isBefore(today) -> candidateDate
         futureAlt?.eventDate != null -> futureAlt.eventDate
@@ -212,9 +214,9 @@ fun ExtractedMemoryBottomSheet(
         val alts = candidate?.alternatives ?: emptyList()
         val futureAlts = alts.filter { it.eventDate != null && !it.eventDate.isBefore(today) }.distinctBy { it.eventDate }
         if (futureAlts.isNotEmpty()) {
-            futureAlts
+            futureAlts.sortedByDescending { it.eventDate }
         } else {
-            alts.filter { it.eventDate != null }.distinctBy { it.eventDate }
+            alts.filter { it.eventDate != null }.distinctBy { it.eventDate }.sortedByDescending { it.eventDate }
         }
     }
     val isAmbiguous = distinctAlternatives.size > 1

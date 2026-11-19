@@ -135,7 +135,7 @@ fun MemoraNavHost(
         }
     }
 
-    LaunchedEffect(currentUser?.uid) {
+    LaunchedEffect(currentUser) {
         if (currentUser != null) {
             appContainer.firestoreSyncManager.sync()
         }
@@ -512,8 +512,12 @@ fun MemoraNavHost(
                 showProfileEmailDialog = true
             },
             onSignOut = {
+                showProfileSheet = false
                 coroutineScope.launch {
                     appContainer.authRepository.signOut()
+                    navController.navigate(Screen.Onboarding.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             },
             onShowPrivacyPolicy = {

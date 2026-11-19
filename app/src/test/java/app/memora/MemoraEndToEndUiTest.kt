@@ -306,8 +306,14 @@ class MemoraEndToEndUiTest {
         composeTestRule.onNodeWithTag("onboarding_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("main_navigation_bar").assertDoesNotExist()
 
-        // Click Skip to complete onboarding
+        // Click Skip on intro to navigate to Account Screen
         composeTestRule.onNodeWithTag("onboarding_btn_skip").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
+        composeTestRule.waitForIdle()
+
+        // Authenticate with Google to complete onboarding
+        composeTestRule.onNodeWithTag("btn_google_signin").performClick()
+        composeTestRule.mainClock.advanceTimeBy(600)
         composeTestRule.waitForIdle()
 
         // Verify navigated to Home and bottom bar is now shown

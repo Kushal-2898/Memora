@@ -51,7 +51,10 @@ fun OnboardingScreen(
     googleAuthClient: app.memora.platform.auth.GoogleAuthClient? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val pagerState = rememberPagerState(pageCount = { 7 })
+    val pagerState = rememberPagerState(
+        initialPage = if (onboardingPreferences?.hasCompletedOnboarding() == true) 6 else 0,
+        pageCount = { 7 }
+    )
     val coroutineScope = rememberCoroutineScope()
     var isCompleting by remember { mutableStateOf(false) }
     var wantsAddFirstItem by remember { mutableStateOf(false) }
@@ -115,7 +118,9 @@ fun OnboardingScreen(
                         },
                         onSkip = {
                             wantsAddFirstItem = false
-                            handleComplete(null)
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(6)
+                            }
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -130,7 +135,9 @@ fun OnboardingScreen(
                         },
                         onSkip = {
                             wantsAddFirstItem = false
-                            handleComplete(null)
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(6)
+                            }
                         },
                         isActive = pagerState.currentPage == 1,
                         modifier = Modifier.fillMaxSize(),
@@ -146,7 +153,9 @@ fun OnboardingScreen(
                         },
                         onSkip = {
                             wantsAddFirstItem = false
-                            handleComplete(null)
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(6)
+                            }
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -161,7 +170,9 @@ fun OnboardingScreen(
                         },
                         onSkip = {
                             wantsAddFirstItem = false
-                            handleComplete(null)
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(6)
+                            }
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -178,7 +189,9 @@ fun OnboardingScreen(
                         },
                         onSkip = {
                             wantsAddFirstItem = false
-                            handleComplete(null)
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(6)
+                            }
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -209,7 +222,7 @@ fun OnboardingScreen(
                         onContinueWithGoogle = {
                             app.memora.platform.logging.AppLog.recordUserAction("Onboarding", "Screen 7: Continue with Google clicked")
                             coroutineScope.launch {
-                                if (googleAuthClient != null && authRepository != null) {
+                                if (googleAuthClient != null && googleAuthClient.canLaunch(context) && authRepository != null) {
                                     val result = googleAuthClient.signIn(context)
                                     val account = result.getOrNull()
                                     if (account != null) {
@@ -247,14 +260,6 @@ fun OnboardingScreen(
                             app.memora.platform.logging.AppLog.recordUserAction("Onboarding", "Screen 7: Continue with Email clicked")
                             emailAuthError = null
                             showEmailAuthDialog = true
-                        },
-                        onContinue = {
-                            app.memora.platform.logging.AppLog.recordUserAction("Onboarding", "Screen 7: Continue clicked")
-                            handleComplete(null)
-                        },
-                        onSkip = {
-                            app.memora.platform.logging.AppLog.recordUserAction("Onboarding", "Screen 7: Skip clicked")
-                            handleComplete(null)
                         },
                         onShowPrivacyPolicy = {
                             app.memora.platform.logging.AppLog.recordUserAction("Onboarding", "Screen 7: Privacy Policy link clicked")

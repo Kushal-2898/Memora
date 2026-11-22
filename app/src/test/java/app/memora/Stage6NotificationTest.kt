@@ -281,7 +281,11 @@ class Stage6NotificationTest {
 
         val updated = app.container.reminderRepository.getReminder(reminderId)
         assertNotNull(updated)
-        assertEquals(today.plusDays(1), updated!!.reminderStartDate)
+        assertTrue(
+            "Snooze must postpone reminder either intra-day or to next day",
+            updated!!.reminderStartDate == today || updated.reminderStartDate == today.plusDays(1)
+        )
+        assertNotNull("Snoozing intra-day must set reminderTime", updated.reminderTime)
         assertNull("Reminder must remain uncompleted", updated.completedAt)
     }
 

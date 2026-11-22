@@ -11,8 +11,10 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Snoozes a reminder by updating its reminderStartDate by +1 day (or specified daysToSnooze)
- * and re-arming the exact alarm via NotificationScheduler.
+ * Snoozes a reminder by updating its reminder schedule.
+ * If daysToSnooze > 0, postpones by N days.
+ * If daysToSnooze == 0, performs an intra-day snooze (defaults to +3 hours,
+ * rolling over to 9:00 AM tomorrow if after 8:00 PM to respect quiet hours).
  */
 class SnoozeReminderUseCase(
     private val reminderRepository: ReminderRepository,
@@ -22,7 +24,8 @@ class SnoozeReminderUseCase(
 ) {
     suspend operator fun invoke(
         reminderId: String,
-        daysToSnooze: Long = 1L
+        daysToSnooze: Long = 0L,
+        hoursToSnooze: Long = 3L,
     ): Result<Reminder> {
         if (reminderId.isBlank()) {
             return Result.failure(MemoraError.Validation("Reminder ID cannot be blank."))
@@ -34,15 +37,29 @@ class SnoozeReminderUseCase(
             ?: return Result.failure(MemoraError.NotFound("Memory not found for ID: ${reminder.memoryId}"))
 
         val zone = runCatching { ZoneId.of(memory.timeZoneId) }.getOrElse { ZoneId.systemDefault() }
-        val today = clockProvider.today(zone)
+        val now = clockProvider.now()
+        val currentDateTime = now.atZone(zone)
+        val today = currentDateTime.toLocalDate()
 
-        val baseDate = if (reminder.reminderStartDate.isAfter(today)) reminder.reminderStartDate else today
-        val newStartDate = baseDate.plusDays(daysToSnooze)
+        val (newStartDate, newReminderTime) = if (daysToSnooze > 0L) {
+            val baseDate = if (reminder.reminderStartDate.isAfter(today)) reminder.reminderStartDate else today
+            baseDate.plusDays(daysToSnooze) to (reminder.reminderTime ?: LocalTime.of(9, 0))
+        } else {
+            // Intra-day snooze (+hoursToSnooze from current clock)
+            val snoozeTarget = currentDateTime.plusHours(hoursToSnooze)
+            val eveningCutoff = LocalTime.of(20, 0) // 8:00 PM cutoff to avoid late-night alerts
+            if (snoozeTarget.toLocalDate().isAfter(today) || snoozeTarget.toLocalTime().isAfter(eveningCutoff)) {
+                today.plusDays(1) to LocalTime.of(9, 0)
+            } else {
+                today to snoozeTarget.toLocalTime().withSecond(0).withNano(0)
+            }
+        }
 
         val updatedReminder = reminder.copy(
             reminderStartDate = newStartDate,
+            reminderTime = newReminderTime,
             completedAt = null,
-            updatedAt = clockProvider.now(),
+            updatedAt = now,
         )
 
         val updateResult = reminderRepository.updateReminder(updatedReminder)

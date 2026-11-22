@@ -67,7 +67,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         if (action == ACTION_SNOOZE_REMINDER) {
             val reminderId = intent.getStringExtra(KEY_REMINDER_ID) ?: return
             val app = context.applicationContext as? MemoraApplication
-            app?.container?.snoozeReminderUseCase?.invoke(reminderId, 1L)
+            app?.container?.snoozeReminderUseCase?.invoke(reminderId, daysToSnooze = 0L, hoursToSnooze = 3L)
             NotificationManagerCompat.from(context).cancel(reminderId.hashCode())
             return
         }
@@ -110,9 +110,18 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             val today = clock.today(zone)
             val daysUntil = ChronoUnit.DAYS.between(today, memory.eventDate)
 
+            val nowTime = clock.now().atZone(zone).toLocalTime()
+            val eveningTime = java.time.LocalTime.of(18, 0)
+
             val message = when (status) {
                 ReminderStatus.REMINDER_ACTIVE -> if (daysUntil == 1L) "Reminder: $effectiveTitle — due tomorrow" else "Reminder: $effectiveTitle — due in $daysUntil days"
-                ReminderStatus.DUE_TODAY -> "Due today: $effectiveTitle"
+                ReminderStatus.DUE_TODAY -> {
+                    if (nowTime.hour >= 17) {
+                        "Action needed: $effectiveTitle expires today"
+                    } else {
+                        "Due today: $effectiveTitle"
+                    }
+                }
                 ReminderStatus.OVERDUE -> "Overdue: $effectiveTitle"
                 else -> null
             } ?: return
@@ -126,8 +135,15 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 (status == ReminderStatus.OVERDUE && daysOverdue <= 7L)
 
             if (shouldReschedule) {
-                val nextDate = today.plusDays(1)
-                val reminderTime = reminder.reminderTime ?: java.time.LocalTime.of(9, 0)
+                // If the item is DUE_TODAY and this is the morning alert (before 18:00),
+                // schedule an evening follow-up check for 18:00 today. Otherwise, schedule next morning.
+                val (nextDate, nextTime) = if (status == ReminderStatus.DUE_TODAY && nowTime.isBefore(eveningTime)) {
+                    today to eveningTime
+                } else {
+                    val defaultTime = app?.container?.onboardingPreferences?.getDefaultReminderTime() ?: java.time.LocalTime.of(9, 0)
+                    today.plusDays(1) to defaultTime
+                }
+
                 container.notificationScheduler.scheduleReminder(
                     memoryId = memory.id,
                     reminderId = reminder.id,
@@ -135,19 +151,20 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                     reminderStartDate = nextDate,
                     eventDate = memory.eventDate,
                     timeZoneId = memory.timeZoneId,
-                    reminderTime = reminderTime,
+                    reminderTime = nextTime,
                 )
             }
         } else {
             // Fallback when container is null (e.g. isolated test or minimal context)
             val zone = runCatching { ZoneId.of(timeZoneId) }.getOrElse { ZoneId.systemDefault() }
             val now = LocalDate.now(zone)
+            val nowTime = java.time.LocalTime.now(zone)
             val eventDate = runCatching { LocalDate.parse(eventDateStr) }.getOrNull() ?: now
             val daysUntil = ChronoUnit.DAYS.between(now, eventDate)
 
             val message = when {
                 daysUntil < 0L -> "Overdue: $title"
-                daysUntil == 0L -> "Due today: $title"
+                daysUntil == 0L -> if (nowTime.hour >= 17) "Action needed: $title expires today" else "Due today: $title"
                 else -> if (daysUntil == 1L) "Reminder: $title — due tomorrow" else "Reminder: $title — due in $daysUntil days"
             }
 

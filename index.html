@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Memora — Smart Expiry Tracker &amp; Visual Reminder Vault</title>
+  <link rel="icon" type="image/png" href="play_store_assets/formatted_screenshots/app_icon_512x512.png">
   <meta name="description" content="Scan groceries, medicines, bills, and warranties in seconds. Memora tracks expiry dates offline-first and reminds you before anything goes to waste.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,6 +46,45 @@
       font-size: 20px;
       letter-spacing: -0.4px;
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+    }
+
+    .screenshots-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 18px;
+      margin-bottom: 56px;
+    }
+
+    .shot-card {
+      background: var(--card-white);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px;
+      box-shadow: 0 6px 20px rgba(44, 39, 35, 0.06);
+      text-align: center;
+    }
+
+    .shot-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      display: block;
+    }
+
+    .shot-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 10px;
     }
 
     .nav-links {
@@ -280,8 +320,12 @@
 <body>
 
   <nav>
-    <a class="brand" href="./">Memora</a>
+    <a class="brand" href="./">
+      <img src="play_store_assets/formatted_screenshots/app_icon_512x512.png" alt="Memora icon">
+      Memora
+    </a>
     <div class="nav-links">
+      <a href="#screenshots">Screenshots</a>
       <a href="#how-it-works">How It Works</a>
       <a href="#plans">Plans</a>
       <a href="privacy-policy.html">Privacy Policy</a>
@@ -299,6 +343,42 @@
   </header>
 
   <main class="container">
+
+    <!-- Screenshots Showcase -->
+    <section id="screenshots">
+      <h2 class="section-title">Inside Memora</h2>
+      <p class="section-sub">Clean Material 3 design — scan any label in seconds and see everything due at a glance.</p>
+      <div class="screenshots-strip">
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/01_welcome.png" alt="Memora Welcome Screen" loading="lazy">
+          <div class="shot-caption">Welcome &amp; Onboarding</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/02_smart_scan.png" alt="Smart OCR Camera Scanner" loading="lazy">
+          <div class="shot-caption">Smart OCR &amp; AI Scanner</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/03_set_reminders.png" alt="Set Smart Reminders" loading="lazy">
+          <div class="shot-caption">Custom Reminder Timing</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/07_home_timeline.png" alt="Home Timeline" loading="lazy">
+          <div class="shot-caption">Due Soon &amp; Upcoming Vault</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/04_notifications.png" alt="Reliable Exact Alarms" loading="lazy">
+          <div class="shot-caption">Reliable Morning &amp; Evening Alerts</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/05_categories.png" alt="Organized Categories" loading="lazy">
+          <div class="shot-caption">Groceries, Meds, Bills &amp; More</div>
+        </div>
+        <div class="shot-card">
+          <img src="play_store_assets/formatted_screenshots/08_privacy_settings.png" alt="Privacy &amp; Settings" loading="lazy">
+          <div class="shot-caption">Privacy-First Settings</div>
+        </div>
+      </div>
+    </section>
 
     <!-- How It Works -->
     <section id="how-it-works">

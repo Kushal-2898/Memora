@@ -14,11 +14,12 @@ interface OnboardingPreferences {
     fun setDefaultReminderTime(time: LocalTime)
     fun getMonthlyScanCount(): Int
     fun incrementMonthlyScanCount(): Int
+    fun setMonthlyScanCount(count: Int) {}
     fun getRemainingMonthlyScans(limit: Int = FREE_MONTHLY_SCAN_LIMIT): Int
     fun isProUser(): Boolean
 
     companion object {
-        const val FREE_MONTHLY_SCAN_LIMIT = 10
+        const val FREE_MONTHLY_SCAN_LIMIT = 5
     }
     fun setProUser(isPro: Boolean)
     fun getCustomCategories(): Set<String>
@@ -82,6 +83,15 @@ class DefaultOnboardingPreferences(context: Context) : OnboardingPreferences {
         val next = current + 1
         prefs.edit().putInt(KEY_SCAN_COUNT, next).apply()
         return next
+    }
+
+    override fun setMonthlyScanCount(count: Int) {
+        val currentMonth = YearMonth.now().toString()
+        val coerced = count.coerceAtLeast(0)
+        prefs.edit()
+            .putString(KEY_SCAN_MONTH, currentMonth)
+            .putInt(KEY_SCAN_COUNT, coerced)
+            .apply()
     }
 
     override fun getRemainingMonthlyScans(limit: Int): Int {

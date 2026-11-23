@@ -360,11 +360,11 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
             SettingsCard(
                 icon = if (isProUser) Icons.Outlined.Security else Icons.Outlined.Schedule,
-                title = if (isProUser) "Memora Pro Active" else "Free Plan ($remainingFreeScans/10 scans left)",
+                title = if (isProUser) "Memora Pro Active" else "Free Plan ($remainingFreeScans/5 scans left)",
                 subtitle = if (isProUser) {
                     "Unlimited ML Kit & Gemini AI scans and custom categories enabled"
                 } else {
-                    "Includes 10 smart scans/month (resets $nextMonthResetDate). Upgrade for unlimited scans."
+                    "Includes 5 smart scans/month (ML Kit + Gemini AI, resets $nextMonthResetDate). Upgrade for unlimited scans."
                 },
                 testTag = "settings_plan_card",
             )

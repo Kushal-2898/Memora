@@ -116,11 +116,12 @@ fun ScannerScreen(
     val canScan = isProUser || remainingScans > 0
     var showQuotaDialog by remember { mutableStateOf(false) }
 
-    // Listen to ViewModel navigation events (e.g. on memory save -> Home)
+    // Listen to ViewModel navigation events (e.g. on memory save -> Home, or QuotaExceeded -> Paywall)
     LaunchedEffect(viewModel) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 is CaptureNavEvent.NavigateToHome -> onNavigateToHome()
+                is CaptureNavEvent.QuotaExceeded -> showQuotaDialog = true
             }
         }
     }
@@ -259,7 +260,7 @@ fun ScannerScreen(
                                 text = if (isProUser) {
                                     "Pro · Unlimited"
                                 } else {
-                                    "$remainingScans/10 free scans"
+                                    "$remainingScans/5 free scans"
                                 },
                                 style = MemoraTypography.caption,
                                 color = Color.White,
@@ -403,7 +404,7 @@ fun ScannerScreen(
                     onRescan = { viewModel.rescan() },
                     onEnterManually = { viewModel.startManualEntry(state.capturedImage) },
                     onDismiss = { viewModel.rescan() },
-                    isProUser = isProUser,
+                    isProUser = canScan,
                     onRequestProUpgrade = { showQuotaDialog = true },
                 )
             }
@@ -573,9 +574,9 @@ fun ScannerScreen(
                 billingGateway = billingGateway,
                 headline = if (remainingScans <= 0) "Monthly Scan Limit Reached" else "Upgrade to Memora Pro",
                 subtitle = if (remainingScans <= 0) {
-                    "You've used all 10 free scans this month. Upgrade to Memora Pro for unlimited ML Kit & Gemini AI scans, or enter items manually."
+                    "You've used all 5 free scans this month. Upgrade to Memora Pro for unlimited ML Kit & Gemini AI scans, or enter items manually."
                 } else {
-                    "You have $remainingScans of 10 free scans left this month. Upgrade to Pro for unlimited scanning and custom categories."
+                    "You have $remainingScans of 5 free scans left this month (ML Kit + Gemini AI included). Upgrade to Pro for unlimited scanning."
                 },
                 onDismiss = { showQuotaDialog = false },
                 onProUnlocked = { entitlementRefreshKey++ },

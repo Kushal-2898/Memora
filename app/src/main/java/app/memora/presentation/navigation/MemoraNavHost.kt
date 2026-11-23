@@ -372,6 +372,9 @@ fun MemoraNavHost(
                         onPushScanEvidence = { evidence ->
                             appContainer.firestoreSyncManager.pushScanEvidence(evidence)
                         },
+                        onSyncScanQuota = {
+                            appContainer.firestoreSyncManager.syncMonthlyScanQuota()
+                        },
                     )
                 )
                 LaunchedEffect(sharedImageUri) {

@@ -35,6 +35,7 @@ import java.util.UUID
 
 sealed interface CaptureNavEvent {
     data object NavigateToHome : CaptureNavEvent
+    data object QuotaExceeded : CaptureNavEvent
 }
 
 typealias ScannerNavEvent = CaptureNavEvent
@@ -70,6 +71,7 @@ class CaptureViewModel(
     private val onboardingPreferences: app.memora.data.local.OnboardingPreferences? = null,
     private val scanEvidenceDao: app.memora.data.local.ScanEvidenceDao? = null,
     private val onPushScanEvidence: (suspend (app.memora.data.local.ScanEvidenceEntity) -> Unit)? = null,
+    private val onSyncScanQuota: (suspend () -> Unit)? = null,
 ) : ViewModel() {
 
     val defaultReminderTime: java.time.LocalTime
@@ -271,6 +273,11 @@ class CaptureViewModel(
     fun onImageSelected(uriString: String?, source: CaptureSource) {
         val actionLabel = if (source == CaptureSource.GALLERY) "Choose Image clicked" else "Import Screenshot clicked"
         val action = app.memora.platform.logging.AppLog.recordUserAction(actionLabel)
+        if (!uriString.isNullOrBlank() && !isProUser && remainingScans <= 0) {
+            app.memora.platform.logging.AppLog.recordStateTransition(action, "QuotaExceeded (Share/Gallery blocked)")
+            viewModelScope.launch { _navigationEvents.emit(CaptureNavEvent.QuotaExceeded) }
+            return
+        }
         val previousState = _uiState.value
         val oldImage = activeTemporaryImage
 
@@ -742,8 +749,16 @@ class CaptureViewModel(
         if (isSaving && inFlightSaveJob?.isActive == true) {
             return inFlightSaveJob!!
         }
-        isSaving = true
         val previousState = _uiState.value
+        val candidateUri = (previousState as? CaptureUiState.ExtractionReady)?.capturedImage?.uri
+            ?: activeTemporaryImage?.uri
+            ?: lastCapturedImageUri
+        if (!candidateUri.isNullOrBlank() && !isProUser && remainingScans <= 0) {
+            return viewModelScope.launch {
+                _navigationEvents.emit(CaptureNavEvent.QuotaExceeded)
+            }
+        }
+        isSaving = true
         val job = viewModelScope.launch {
             val action = AppLog.recordUserAction("Capture Screen", "Save Memory clicked", "title=$title, date=$eventDate")
             AppLog.recordStateTransition(action, "CaptureUiState: Processing (Saving memory)")
@@ -858,6 +873,7 @@ class CaptureViewModel(
                 analyticsLogger.logEvent("memory_saved")
                 if (hadImageScan) {
                     onboardingPreferences?.incrementMonthlyScanCount()
+                    runCatching { onSyncScanQuota?.invoke() }
                 }
                 AppLog.recordStateTransition(action, "CaptureUiState: Idle / NavigateToHome", result = "SUCCESS")
                 _uiState.value = CaptureUiState.Idle
@@ -916,6 +932,7 @@ class CaptureViewModel(
         private val onboardingPreferences: app.memora.data.local.OnboardingPreferences? = null,
         private val scanEvidenceDao: app.memora.data.local.ScanEvidenceDao? = null,
         private val onPushScanEvidence: (suspend (app.memora.data.local.ScanEvidenceEntity) -> Unit)? = null,
+        private val onSyncScanQuota: (suspend () -> Unit)? = null,
     ) : ViewModelProvider.Factory {
 
         constructor(
@@ -969,6 +986,7 @@ class CaptureViewModel(
                     onboardingPreferences = onboardingPreferences,
                     scanEvidenceDao = scanEvidenceDao,
                     onPushScanEvidence = onPushScanEvidence,
+                    onSyncScanQuota = onSyncScanQuota,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

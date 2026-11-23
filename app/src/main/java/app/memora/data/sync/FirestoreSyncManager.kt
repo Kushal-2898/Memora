@@ -35,6 +35,7 @@ class FirestoreSyncManager(
     private val authRepository: AuthRepository,
     private val notificationScheduler: app.memora.platform.notification.NotificationScheduler? = null,
     private val scanEvidenceDao: ScanEvidenceDao? = null,
+    private val onboardingPreferences: app.memora.data.local.OnboardingPreferences? = null,
     private val firestore: FirebaseFirestore? = runCatching { FirebaseFirestore.getInstance() }.getOrNull(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
@@ -60,6 +61,7 @@ class FirestoreSyncManager(
             val userMemoriesCollection = db.collection("users").document(user.uid).collection("memories")
 
             // 1. FETCH REMOTE SNAPSHOT FIRST to prevent overwriting newer cloud edits with stale local data
+            runCatching { syncMonthlyScanQuota() }
             val remoteDocs = userMemoriesCollection.get().await()
             val remoteUpdatedById = HashMap<String, Long>(remoteDocs.size())
 
@@ -264,6 +266,39 @@ class FirestoreSyncManager(
     }
 
     /**
+     * Synchronizes the monthly scan counter with Firestore (users/{uid}/usage/{yyyy-MM})
+     * taking max(local, remote) so clearing app data or reinstalling cannot reset the 5-scan quota.
+     */
+    suspend fun syncMonthlyScanQuota(): Result<Int> = withContext(ioDispatcher) {
+        val prefs = onboardingPreferences ?: return@withContext Result.success(0)
+        val user = authRepository.currentUser.value ?: return@withContext Result.success(prefs.getMonthlyScanCount())
+        if (!isValidCloudUser(user)) {
+            return@withContext Result.success(prefs.getMonthlyScanCount())
+        }
+        val db = firestore ?: return@withContext Result.success(prefs.getMonthlyScanCount())
+        runCatching {
+            val monthKey = java.time.YearMonth.now().toString()
+            val usageRef = db.collection("users").document(user.uid).collection("usage").document(monthKey)
+            val localCount = prefs.getMonthlyScanCount()
+            val remoteSnap = usageRef.get().await()
+            val remoteCount = (remoteSnap.getLong("scanCount") ?: 0L).toInt()
+            val merged = maxOf(localCount, remoteCount)
+            if (merged > localCount) {
+                prefs.setMonthlyScanCount(merged)
+            }
+            if (merged > remoteCount || !remoteSnap.exists()) {
+                usageRef.set(
+                    mapOf(
+                        "scanCount" to merged,
+                        "updatedAt" to System.currentTimeMillis(),
+                    )
+                ).await()
+            }
+            merged
+        }
+    }
+
+    /**
      * Permanently purges all cloud-synced memories, scan evidence, and the user document in Firestore
      * prior to Firebase Auth account deletion (DPDP Act Section 12 / Play Store Policy).
      */
@@ -275,7 +310,7 @@ class FirestoreSyncManager(
         val db = firestore ?: return@withContext Result.success(Unit)
         runCatching {
             val userDoc = db.collection("users").document(user.uid)
-            for (subcollection in listOf("memories", "scan_evidence")) {
+            for (subcollection in listOf("memories", "scan_evidence", "usage")) {
                 val docs = userDoc.collection(subcollection).get().await()
                 if (!docs.isEmpty) {
                     for (chunk in docs.documents.chunked(450)) {

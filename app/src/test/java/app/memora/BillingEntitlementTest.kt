@@ -40,18 +40,18 @@ class BillingEntitlementTest {
     }
 
     @Test
-    fun `free user can scan up to 10 times per month and is gated on scan 11`() = runTest {
+    fun `free user can scan up to 5 times per month and is gated on scan 6`() = runTest {
         val prefs = FakeOnboardingPreferences(pro = false, scans = 0)
         val repo = DefaultEntitlementRepository(prefs)
 
-        assertEquals(10, OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT)
-        repeat(10) {
+        assertEquals(5, OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT)
+        repeat(5) {
             assertTrue("Scan #${it + 1} must be allowed on Free plan", repo.canScan())
             prefs.incrementMonthlyScanCount()
         }
 
         assertEquals(0, prefs.getRemainingMonthlyScans())
-        assertFalse("Scan #11 must require Memora Pro", repo.canScan())
+        assertFalse("Scan #6 must require Memora Pro", repo.canScan())
         assertEquals(EntitlementStatus.FREE, repo.getEntitlement().status)
     }
 

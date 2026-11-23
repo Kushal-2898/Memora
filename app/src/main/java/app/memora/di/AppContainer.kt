@@ -164,6 +164,7 @@ class DefaultAppContainer(
             authRepository = authRepository,
             notificationScheduler = notificationScheduler,
             scanEvidenceDao = database.scanEvidenceDao(),
+            onboardingPreferences = onboardingPreferences,
         )
     }
 

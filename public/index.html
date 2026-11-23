@@ -1,0 +1,469 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memora â€” Smart Expiry Tracker &amp; Visual Reminder Vault</title>
+  <link rel="icon" type="image/png" href="assets/app_icon_512x512.png">
+  <meta name="description" content="Scan groceries, medicines, bills, and warranties in seconds. Memora tracks expiry dates offline-first and reminds you before anything goes to waste.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --deep-forest: #214A34;
+      --forest-dark: #183827;
+      --terracotta: #E06D53;
+      --paper-beige: #FAF7F2;
+      --card-white: #FFFFFF;
+      --ink: #2C2723;
+      --muted: #6E655C;
+      --border: #EDE7DD;
+      --sage-bg: #EEF4F0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--paper-beige);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    nav {
+      background: var(--forest-dark);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand {
+      color: #FFFFFF;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.4px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+    }
+
+    .screenshots-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 18px;
+      margin-bottom: 56px;
+    }
+
+    .shot-card {
+      background: var(--card-white);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px;
+      box-shadow: 0 6px 20px rgba(44, 39, 35, 0.06);
+      text-align: center;
+    }
+
+    .shot-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 12px;
+      display: block;
+    }
+
+    .shot-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 10px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: #D8E2DC;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .nav-links a:hover { color: #FFFFFF; }
+
+    header.hero {
+      background: linear-gradient(135deg, #183827 0%, #214A34 100%);
+      color: #FFFFFF;
+      padding: 72px 24px 64px;
+      text-align: center;
+      border-bottom: 4px solid var(--terracotta);
+    }
+
+    .pill {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 18px;
+    }
+
+    header.hero h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.8px;
+      max-width: 720px;
+      margin: 0 auto 16px;
+    }
+
+    header.hero p {
+      font-size: 17px;
+      color: #D8E2DC;
+      max-width: 600px;
+      margin: 0 auto 28px;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--terracotta);
+      color: #FFFFFF;
+      padding: 13px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #FFFFFF;
+      padding: 13px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 56px 20px;
+    }
+
+    .section-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--deep-forest);
+      letter-spacing: -0.4px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .section-sub {
+      font-size: 15px;
+      color: var(--muted);
+      text-align: center;
+      max-width: 580px;
+      margin: 0 auto 36px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 56px;
+    }
+
+    .card {
+      background: var(--card-white);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 26px;
+      box-shadow: 0 4px 16px rgba(44, 39, 35, 0.04);
+    }
+
+    .step-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--deep-forest);
+      color: #FFFFFF;
+      font-weight: 800;
+      font-size: 15px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+
+    .card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+
+    .card p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 56px;
+    }
+
+    .chip {
+      background: var(--card-white);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 999px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 20px;
+    }
+
+    .plan-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--sage-bg);
+      color: var(--deep-forest);
+      margin-bottom: 12px;
+    }
+
+    .plan-pro {
+      border: 2px solid var(--deep-forest);
+      background: #F6FAF7;
+    }
+
+    ul.check-list {
+      list-style: none;
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    ul.check-list li {
+      font-size: 14px;
+      color: #4A423B;
+      padding-left: 22px;
+      position: relative;
+    }
+
+    ul.check-list li::before {
+      content: "âœ“";
+      position: absolute;
+      left: 0;
+      color: var(--deep-forest);
+      font-weight: 800;
+    }
+
+    footer {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+      background: #F5F0E8;
+    }
+
+    footer a {
+      color: var(--deep-forest);
+      text-decoration: none;
+      font-weight: 600;
+      margin: 0 10px;
+    }
+
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="brand" href="./">
+      <img src="assets/app_icon_512x512.png" alt="Memora icon">
+      Memora
+    </a>
+    <div class="nav-links">
+      <a href="#screenshots">Screenshots</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#plans">Plans</a>
+      <a href="privacy-policy.html">Privacy Policy</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="pill">Offline-First Android App</div>
+    <h1>Never lose track of what expires or comes due.</h1>
+    <p>Point your camera at groceries, medicine strips, warranties, or bills. Memora reads the date in seconds and keeps reminding you until it's done.</p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#how-it-works">See How It Works</a>
+      <a class="btn-secondary" href="privacy-policy.html">Privacy &amp; Data Charter</a>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Screenshots Showcase -->
+    <section id="screenshots">
+      <h2 class="section-title">Inside Memora</h2>
+      <p class="section-sub">Clean Material 3 design â€” scan any label in seconds and see everything due at a glance.</p>
+      <div class="screenshots-strip">
+        <div class="shot-card">
+          <img src="assets/01_welcome.png" alt="Memora Welcome Screen" loading="lazy">
+          <div class="shot-caption">Welcome &amp; Onboarding</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/02_smart_scan.png" alt="Smart OCR Camera Scanner" loading="lazy">
+          <div class="shot-caption">Smart OCR &amp; AI Scanner</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/03_set_reminders.png" alt="Set Smart Reminders" loading="lazy">
+          <div class="shot-caption">Custom Reminder Timing</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/07_home_timeline.png" alt="Home Timeline" loading="lazy">
+          <div class="shot-caption">Due Soon &amp; Upcoming Vault</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/04_notifications.png" alt="Reliable Exact Alarms" loading="lazy">
+          <div class="shot-caption">Reliable Morning &amp; Evening Alerts</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/05_categories.png" alt="Organized Categories" loading="lazy">
+          <div class="shot-caption">Groceries, Meds, Bills &amp; More</div>
+        </div>
+        <div class="shot-card">
+          <img src="assets/08_privacy_settings.png" alt="Privacy &amp; Settings" loading="lazy">
+          <div class="shot-caption">Privacy-First Settings</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works">
+      <h2 class="section-title">How Memora Works</h2>
+      <p class="section-sub">Built for real-world packaging â€” fast, private, and reliable even without internet.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="step-badge">1</div>
+          <h3>Point &amp; Scan</h3>
+          <p>Snap any product label, medicine blister, or bill. On-device ML Kit OCR and Gemini AI automatically separate MFG vs. EXP dates and filter out packaging noise.</p>
+        </div>
+
+        <div class="card">
+          <div class="step-badge">2</div>
+          <h3>Exact Reminders That Stick</h3>
+          <p>Scheduled directly with Android AlarmManager so battery savers don't kill them â€” with 9:00 AM morning alerts, 6:00 PM "Due Today" follow-ups, and 3-hour intra-day snooze.</p>
+        </div>
+
+        <div class="card">
+          <div class="step-badge">3</div>
+          <h3>Private &amp; Backed Up</h3>
+          <p>Everything works offline-first on your device with secure Google account sync, zero advertising SDKs, and instant one-tap account and data erasure.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- What You Can Track -->
+    <section>
+      <h2 class="section-title">One Vault for Everyday Dates</h2>
+      <p class="section-sub">Stop throwing away expired food or paying late fees on forgotten bills.</p>
+      <div class="chips">
+        <span class="chip">ðŸ¥› Groceries &amp; Dairy</span>
+        <span class="chip">ðŸ’Š Medicines &amp; Prescriptions</span>
+        <span class="chip">ðŸ§¾ Bills &amp; Utilities</span>
+        <span class="chip">ðŸ›¡ï¸ Product Warranties</span>
+        <span class="chip">ðŸ”„ Subscriptions &amp; Renewals</span>
+        <span class="chip">ðŸ“„ Passports &amp; Documents</span>
+      </div>
+    </section>
+
+    <!-- Free vs Pro -->
+    <section id="plans">
+      <h2 class="section-title">Simple, Fair Plans</h2>
+      <p class="section-sub">Try the full scanner free every month â€” upgrade via Google Play only when you need unlimited scans.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <span class="plan-tag">Free Forever</span>
+          <h3>Memora Free</h3>
+          <p>Everything you need to start tracking important dates right away.</p>
+          <ul class="check-list">
+            <li>5 smart scans per month (ML Kit + Gemini AI included)</li>
+            <li>Unlimited manual item entry &amp; reminders</li>
+            <li>Exact morning alarms, 3-hour snooze &amp; evening Due-Today alerts</li>
+            <li>Secure Google Cloud backup &amp; sync</li>
+          </ul>
+        </div>
+
+        <div class="card plan-pro">
+          <span class="plan-tag">Memora Pro Â· Google Play</span>
+          <h3>Memora Pro</h3>
+          <p>For households and power users who scan groceries, medicines, and bills every week.</p>
+          <ul class="check-list">
+            <li>Unlimited camera &amp; gallery smart scans (ML Kit + Gemini AI)</li>
+            <li>Unlimited custom categories &amp; organization tags</li>
+            <li>Flexible Monthly, Annual, or UPI Prepaid passes via Google Play</li>
+            <li>Cancel or manage anytime in Google Play Store</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div style="margin-bottom: 12px;">
+      <a href="privacy-policy.html">Privacy Policy</a> â€¢
+      <a href="privacy-policy.html#limits">Terms &amp; Liability</a> â€¢
+      <a href="privacy-policy.html#grievances">Grievance Officer</a> â€¢
+      <a href="mailto:klabsstudios@gmail.com">Contact Support</a>
+    </div>
+    <p>&copy; 2026 Memora by K-Labs Studios. All rights reserved.</p>
+  </footer>
+
+</body>
+</html>
+

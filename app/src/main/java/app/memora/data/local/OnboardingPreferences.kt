@@ -14,8 +14,12 @@ interface OnboardingPreferences {
     fun setDefaultReminderTime(time: LocalTime)
     fun getMonthlyScanCount(): Int
     fun incrementMonthlyScanCount(): Int
-    fun getRemainingMonthlyScans(limit: Int = 5): Int
+    fun getRemainingMonthlyScans(limit: Int = FREE_MONTHLY_SCAN_LIMIT): Int
     fun isProUser(): Boolean
+
+    companion object {
+        const val FREE_MONTHLY_SCAN_LIMIT = 10
+    }
     fun setProUser(isPro: Boolean)
     fun getCustomCategories(): Set<String>
     fun addCustomCategory(category: String)

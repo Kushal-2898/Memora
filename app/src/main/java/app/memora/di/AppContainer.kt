@@ -168,7 +168,15 @@ class DefaultAppContainer(
     }
 
     override val billingGateway: BillingGateway by lazy {
-        app.memora.data.gateway.DefaultBillingGateway()
+        val isRobolectric = runCatching { Class.forName("org.robolectric.Robolectric") }.isSuccess
+        if (isRobolectric || context == null) {
+            app.memora.data.gateway.DefaultBillingGateway()
+        } else {
+            app.memora.platform.billing.PlayBillingGateway(
+                context = context,
+                onboardingPreferences = onboardingPreferences,
+            )
+        }
     }
 
     override val getEntitlementUseCase: GetEntitlementUseCase by lazy {

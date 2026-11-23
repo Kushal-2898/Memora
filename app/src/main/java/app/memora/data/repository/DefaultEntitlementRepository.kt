@@ -13,12 +13,14 @@ class DefaultEntitlementRepository(
 
     private fun resolveEntitlement(): Entitlement {
         val isPro = onboardingPreferences?.isProUser() ?: false
+        val remainingScans = onboardingPreferences?.getRemainingMonthlyScans(OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT)
+            ?: OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT
         return Entitlement(
             status = if (isPro) EntitlementStatus.PREMIUM else EntitlementStatus.FREE,
-            canScan = isPro,
+            canScan = isPro || remainingScans > 0,
             canSave = true,
             productId = if (isPro) "memora_pro_tier" else null,
-            source = if (isPro) "user_entitlement_pro" else "free_tier"
+            source = if (isPro) "google_play_billing" else "free_tier"
         )
     }
 

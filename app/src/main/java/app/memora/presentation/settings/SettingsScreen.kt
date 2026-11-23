@@ -124,7 +124,9 @@ fun SettingsScreen(
     var versionTapCount by remember { mutableIntStateOf(0) }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a") }
     var isProUser by remember { mutableStateOf(preferences.isProUser()) }
+    var showPaywallSheet by remember { mutableStateOf(false) }
     var monthlyScanCount by remember { mutableIntStateOf(preferences.getMonthlyScanCount()) }
+    val remainingFreeScans = (app.memora.data.local.OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT - monthlyScanCount).coerceAtLeast(0)
     val nextMonthResetDate = remember {
         runCatching {
             java.time.YearMonth.now().plusMonths(1).atDay(1).format(java.time.format.DateTimeFormatter.ofPattern("MMM d"))
@@ -358,8 +360,12 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
             SettingsCard(
                 icon = if (isProUser) Icons.Outlined.Security else Icons.Outlined.Schedule,
-                title = if (isProUser) "Memora Pro Active" else "Free Plan (Unlimited On-Device OCR)",
-                subtitle = if (isProUser) "AI smart scans & custom categories enabled" else "AI analysis & custom categories require Memora Pro",
+                title = if (isProUser) "Memora Pro Active" else "Free Plan ($remainingFreeScans/10 scans left)",
+                subtitle = if (isProUser) {
+                    "Unlimited ML Kit & Gemini AI scans and custom categories enabled"
+                } else {
+                    "Includes 10 smart scans/month (resets $nextMonthResetDate). Upgrade for unlimited scans."
+                },
                 testTag = "settings_plan_card",
             )
             if (!isProUser) {
@@ -367,26 +373,10 @@ fun SettingsScreen(
                 SettingsActionCard(
                     icon = Icons.Outlined.Security,
                     title = "Upgrade to Memora Pro",
-                    subtitle = "Unlock unlimited AI & local smart scans and custom categories",
+                    subtitle = "Unlock unlimited ML Kit & Gemini AI scans and custom categories",
                     actionLabel = "Upgrade",
                     testTag = "settings_upgrade_pro_card",
-                    onClick = {
-                        coroutineScope.launch {
-                            val result = billingGateway?.initiatePurchase("memora_pro_annual")
-                                ?: Result.failure(IllegalStateException("Google Play Billing is not available."))
-                            if (result.isSuccess) {
-                                preferences.setProUser(true)
-                                isProUser = true
-                                Toast.makeText(context, "Memora Pro activated!", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    result.exceptionOrNull()?.message ?: "Google Play Billing is not available right now.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    },
+                    onClick = { showPaywallSheet = true },
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -491,6 +481,14 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showPaywallSheet) {
+            app.memora.presentation.common.ProPaywallBottomSheet(
+                billingGateway = billingGateway,
+                onDismiss = { showPaywallSheet = false },
+                onProUnlocked = { isProUser = true },
+            )
         }
 
         if (showPolicyDialog) {

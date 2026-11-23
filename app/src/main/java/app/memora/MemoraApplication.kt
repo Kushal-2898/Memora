@@ -9,6 +9,7 @@ import android.media.RingtoneManager
 import android.os.Build
 import app.memora.di.AppContainer
 import app.memora.di.DefaultAppContainer
+import kotlinx.coroutines.launch
 
 /**
  * Application class providing the application composition root.
@@ -48,6 +49,10 @@ class MemoraApplication : Application() {
             container.onboardingPreferences.isScanNudgeEnabled()
         ) {
             app.memora.platform.notification.ScanNudgeScheduler.scheduleInitial(this, isVaultEmpty = false)
+        }
+        // Silently sync active Google Play Pro entitlement on startup
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { container.billingGateway.restorePurchases() }
         }
     }
 

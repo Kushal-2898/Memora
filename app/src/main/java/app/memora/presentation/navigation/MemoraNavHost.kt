@@ -385,6 +385,7 @@ fun MemoraNavHost(
                     viewModel = scannerViewModel,
                     cameraManager = appContainer.cameraXManager,
                     imageStorage = appContainer.imageStorage,
+                    billingGateway = appContainer.billingGateway,
                     onNavigateBack = {
                         if (!navController.popBackStack(Screen.Scanner.route, inclusive = true)) {
                             navController.navigate(Screen.Home.route) {

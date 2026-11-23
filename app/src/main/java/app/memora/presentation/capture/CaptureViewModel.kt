@@ -79,11 +79,17 @@ class CaptureViewModel(
         get() = onboardingPreferences?.isProUser() ?: false
 
     val remainingScans: Int
-        get() = Int.MAX_VALUE
+        get() = if (isProUser) {
+            Int.MAX_VALUE
+        } else {
+            onboardingPreferences?.getRemainingMonthlyScans(
+                app.memora.data.local.OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT
+            ) ?: app.memora.data.local.OnboardingPreferences.FREE_MONTHLY_SCAN_LIMIT
+        }
 
-    suspend fun canUseAiScan(): Boolean = canScanUseCase?.invoke() ?: (onboardingPreferences?.isProUser() ?: true)
+    suspend fun canUseAiScan(): Boolean = canScan()
 
-    suspend fun canScan(): Boolean = true
+    suspend fun canScan(): Boolean = isProUser || remainingScans > 0
 
     // Backward-compatible secondary constructor for existing callers/tests
     constructor(

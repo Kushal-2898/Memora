@@ -96,6 +96,7 @@ fun ScannerScreen(
     cameraManager: CameraXManager?,
     imageStorage: ImageStorage,
     modifier: Modifier = Modifier,
+    billingGateway: app.memora.domain.gateway.BillingGateway? = null,
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = onNavigateBack,
     onImageConfirmed: ((CapturedImage) -> Unit)? = null,
@@ -109,8 +110,10 @@ fun ScannerScreen(
     var showDiscardSheetDialog by remember { mutableStateOf(false) }
     var extractedCandidate by remember { mutableStateOf<ExtractedMemoryCandidate?>(null) }
 
-    val isProUser = viewModel.isProUser
-    val canScan = true
+    var entitlementRefreshKey by remember { mutableStateOf(0) }
+    val isProUser = remember(entitlementRefreshKey, uiState) { viewModel.isProUser }
+    val remainingScans = remember(entitlementRefreshKey, uiState) { viewModel.remainingScans }
+    val canScan = isProUser || remainingScans > 0
     var showQuotaDialog by remember { mutableStateOf(false) }
 
     // Listen to ViewModel navigation events (e.g. on memory save -> Home)
@@ -253,7 +256,11 @@ fun ScannerScreen(
                                 modifier = Modifier.size(16.dp),
                             )
                             Text(
-                                text = if (isProUser) "Pro · AI Scan" else "Free · On-Device OCR",
+                                text = if (isProUser) {
+                                    "Pro · Unlimited"
+                                } else {
+                                    "$remainingScans/10 free scans"
+                                },
                                 style = MemoraTypography.caption,
                                 color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
@@ -539,31 +546,45 @@ fun ScannerScreen(
     }
 
     if (showQuotaDialog) {
-        AlertDialog(
-            onDismissRequest = { showQuotaDialog = false },
-            containerColor = CardWhite,
-            title = {
-                Text(
-                    text = if (isProUser) "Memora Pro Active" else "Memora Pro Required",
-                    style = MemoraTypography.title,
-                )
-            },
-            text = {
-                Text(
-                    text = if (isProUser) {
-                        "You have an active Memora Pro membership with AI smart scan analysis, custom categories, and priority reminders."
-                    } else {
-                        "On-device OCR scanning is unlimited and free.\n\nCloud AI deep analysis ('Analyze with AI') is a Memora Pro feature. Upgrade to Memora Pro in Settings to unlock AI scan refinement and custom categories."
-                    },
-                    style = MemoraTypography.body,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showQuotaDialog = false }) {
-                    Text("Got it")
-                }
-            }
-        )
+        if (isProUser) {
+            AlertDialog(
+                onDismissRequest = { showQuotaDialog = false },
+                containerColor = CardWhite,
+                title = {
+                    Text(
+                        text = "Memora Pro Active",
+                        style = MemoraTypography.title,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "You have an active Memora Pro membership with unlimited ML Kit & Gemini AI scans and custom categories.",
+                        style = MemoraTypography.body,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showQuotaDialog = false }) {
+                        Text("Got it")
+                    }
+                },
+            )
+        } else {
+            app.memora.presentation.common.ProPaywallBottomSheet(
+                billingGateway = billingGateway,
+                headline = if (remainingScans <= 0) "Monthly Scan Limit Reached" else "Upgrade to Memora Pro",
+                subtitle = if (remainingScans <= 0) {
+                    "You've used all 10 free scans this month. Upgrade to Memora Pro for unlimited ML Kit & Gemini AI scans, or enter items manually."
+                } else {
+                    "You have $remainingScans of 10 free scans left this month. Upgrade to Pro for unlimited scanning and custom categories."
+                },
+                onDismiss = { showQuotaDialog = false },
+                onProUnlocked = { entitlementRefreshKey++ },
+                onAddManually = {
+                    viewModel.cancelCapture()
+                    onNavigateBack()
+                },
+            )
+        }
     }
 }
 

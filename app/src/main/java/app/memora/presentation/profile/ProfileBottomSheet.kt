@@ -421,19 +421,22 @@ fun ProfileBottomSheet(
             Spacer(modifier = Modifier.height(4.dp))
 
             // 4. Close Button
-            OutlinedButton(
+            androidx.compose.material3.Button(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("profile_sheet_close_button"),
                 shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = DeepForestGreen,
+                    contentColor = Color.White,
+                ),
             ) {
                 Text(
                     text = "Close",
                     style = MemoraTypography.label.copy(fontWeight = FontWeight.SemiBold),
-                    color = PrimaryNavy,
+                    color = Color.White,
                 )
             }
         }

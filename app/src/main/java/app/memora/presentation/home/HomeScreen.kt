@@ -345,7 +345,7 @@ fun HomeScreen(
             snackbar = { snackbarData ->
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = PrimaryNavy,
+                    containerColor = app.memora.ui.theme.DeepForestGreen,
                     contentColor = Color.White,
                     actionColor = Color(0xFFFFD54F),
                     actionContentColor = Color(0xFFFFD54F),

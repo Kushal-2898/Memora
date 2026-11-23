@@ -168,7 +168,10 @@ fun PrivacyPolicyDialog(
                         .height(48.dp)
                         .testTag("dialog_policy_close_button"),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryNavy),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = app.memora.ui.theme.DeepForestGreen,
+                        contentColor = Color.White,
+                    ),
                 ) {
                     Text(
                         text = stringResource(R.string.dialog_policy_close),
@@ -199,7 +202,7 @@ private fun PolicySectionItem(
                 modifier = Modifier
                     .size(20.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(PrimaryNavy),
+                    .background(app.memora.ui.theme.DeepForestGreen),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

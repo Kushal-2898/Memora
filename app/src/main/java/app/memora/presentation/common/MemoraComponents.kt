@@ -221,9 +221,9 @@ fun PrimaryButton(
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = PrimaryNavy,
+            containerColor = app.memora.ui.theme.DeepForestGreen,
             contentColor = Color.White,
-            disabledContainerColor = PrimaryNavy.copy(alpha = 0.4f),
+            disabledContainerColor = app.memora.ui.theme.DeepForestGreen.copy(alpha = 0.4f),
             disabledContentColor = Color.White.copy(alpha = 0.7f),
         ),
         elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),

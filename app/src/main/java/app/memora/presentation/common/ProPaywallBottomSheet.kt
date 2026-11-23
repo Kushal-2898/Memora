@@ -280,7 +280,7 @@ fun ProPaywallBottomSheet(
                 },
                 enabled = !isPurchasing && !isLoading && offers.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryNavy,
+                    containerColor = app.memora.ui.theme.DeepForestGreen,
                     contentColor = Color.White,
                 ),
                 shape = RoundedCornerShape(14.dp),

@@ -369,7 +369,7 @@ fun CurrentScanDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = PrimaryNavy,
+                        containerColor = app.memora.ui.theme.DeepForestGreen,
                         contentColor = Color.White,
                     ),
                 ) {

@@ -29,11 +29,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.memora.ui.theme.CardWhite
+import app.memora.ui.theme.DeepForestGreen
 import app.memora.ui.theme.MemoraTypography
 import app.memora.ui.theme.PrimaryNavy
 import app.memora.ui.theme.SecondaryText
 import app.memora.ui.theme.TextCaption
-import app.memora.ui.theme.WarmParchment
+import app.memora.ui.theme.WarmSageBg
 
 /**
  * Post-onboarding Notification Permission Access Dialog
@@ -57,13 +58,13 @@ fun NotificationPermissionDialog(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(WarmParchment),
+                    .background(WarmSageBg),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.NotificationsActive,
                     contentDescription = null,
-                    tint = PrimaryNavy,
+                    tint = DeepForestGreen,
                     modifier = Modifier.size(28.dp),
                 )
             }
@@ -90,7 +91,7 @@ fun NotificationPermissionDialog(
             Button(
                 onClick = onAllow,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryNavy,
+                    containerColor = DeepForestGreen,
                     contentColor = Color.White,
                 ),
                 shape = RoundedCornerShape(14.dp),

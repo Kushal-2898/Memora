@@ -227,7 +227,7 @@ fun ProfileBottomSheet(
                             color = PrimaryNavy,
                         )
                         Text(
-                            text = "Reminders, notifications, theme, backup",
+                            text = "Reminders, notifications, backup",
                             style = MemoraTypography.caption,
                             color = TextCaption,
                         )

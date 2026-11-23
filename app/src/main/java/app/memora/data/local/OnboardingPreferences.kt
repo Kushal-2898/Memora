@@ -30,6 +30,8 @@ interface OnboardingPreferences {
     }
     fun hasPromptedNotificationPermission(): Boolean
     fun setPromptedNotificationPermission(prompted: Boolean = true)
+    fun isScanNudgeEnabled(): Boolean = true
+    fun setScanNudgeEnabled(enabled: Boolean) {}
 }
 
 class DefaultOnboardingPreferences(context: Context) : OnboardingPreferences {
@@ -152,6 +154,14 @@ class DefaultOnboardingPreferences(context: Context) : OnboardingPreferences {
         prefs.edit().putBoolean(KEY_PROMPTED_NOTIFICATION, prompted).apply()
     }
 
+    override fun isScanNudgeEnabled(): Boolean {
+        return prefs.getBoolean(KEY_SCAN_NUDGE_ENABLED, true)
+    }
+
+    override fun setScanNudgeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SCAN_NUDGE_ENABLED, enabled).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "memora_user_preferences"
         private const val KEY_COMPLETED = "has_completed_onboarding"
@@ -166,6 +176,7 @@ class DefaultOnboardingPreferences(context: Context) : OnboardingPreferences {
         private const val KEY_AUTH_NAME = "auth_user_display_name"
         private const val KEY_AUTH_PHOTO = "auth_user_photo_url"
         private const val KEY_PROMPTED_NOTIFICATION = "has_prompted_notification_permission"
+        private const val KEY_SCAN_NUDGE_ENABLED = "scan_nudge_enabled"
         val defaultCategories = setOf("groceries", "medicines", "bills")
     }
 }

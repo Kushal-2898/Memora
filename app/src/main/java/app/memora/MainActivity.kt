@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
 
   private val pendingSharedImageUri = mutableStateOf<String?>(null)
   private val pendingNotificationMemoryId = mutableStateOf<String?>(null)
+  private val pendingOpenScanner = mutableStateOf(false)
 
   private fun handleIntents(intent: Intent?) {
     if (intent == null) return
@@ -33,6 +34,10 @@ class MainActivity : ComponentActivity() {
     if (!memoryId.isNullOrBlank()) {
       pendingNotificationMemoryId.value = memoryId
       intent.removeExtra(app.memora.platform.notification.ReminderAlarmReceiver.KEY_MEMORY_ID)
+    }
+    if (intent.getBooleanExtra(app.memora.platform.notification.ScanNudgeWorker.KEY_OPEN_SCANNER, false)) {
+      pendingOpenScanner.value = true
+      intent.removeExtra(app.memora.platform.notification.ScanNudgeWorker.KEY_OPEN_SCANNER)
     }
   }
 
@@ -68,6 +73,8 @@ class MainActivity : ComponentActivity() {
             onSharedImageConsumed = { pendingSharedImageUri.value = null },
             initialMemoryId = pendingNotificationMemoryId.value,
             onMemoryIdConsumed = { pendingNotificationMemoryId.value = null },
+            openScannerOnLaunch = pendingOpenScanner.value,
+            onOpenScannerConsumed = { pendingOpenScanner.value = false },
             modifier = Modifier.fillMaxSize(),
           )
         }

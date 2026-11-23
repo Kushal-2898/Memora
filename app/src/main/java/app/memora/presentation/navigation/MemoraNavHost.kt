@@ -71,6 +71,8 @@ fun MemoraNavHost(
     onSharedImageConsumed: () -> Unit = {},
     initialMemoryId: String? = null,
     onMemoryIdConsumed: () -> Unit = {},
+    openScannerOnLaunch: Boolean = false,
+    onOpenScannerConsumed: () -> Unit = {},
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -126,6 +128,15 @@ fun MemoraNavHost(
                 restoreState = true
             }
             onMemoryIdConsumed()
+        }
+    }
+
+    LaunchedEffect(openScannerOnLaunch) {
+        if (openScannerOnLaunch && appContainer.onboardingPreferences.hasCompletedOnboarding()) {
+            navController.navigate(Screen.Scanner.route) {
+                launchSingleTop = true
+            }
+            onOpenScannerConsumed()
         }
     }
 
@@ -257,6 +268,9 @@ fun MemoraNavHost(
                 app.memora.presentation.onboarding.OnboardingScreen(
                     onComplete = {
                         appContainer.onboardingPreferences.setOnboardingCompleted(true)
+                        if (appContainer.onboardingPreferences.isScanNudgeEnabled()) {
+                            app.memora.platform.notification.ScanNudgeScheduler.scheduleInitial(context, isVaultEmpty = true)
+                        }
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Onboarding.route) {
                                 inclusive = true
@@ -265,6 +279,9 @@ fun MemoraNavHost(
                     },
                     onAddFirstItem = {
                         appContainer.onboardingPreferences.setOnboardingCompleted(true)
+                        if (appContainer.onboardingPreferences.isScanNudgeEnabled()) {
+                            app.memora.platform.notification.ScanNudgeScheduler.scheduleInitial(context, isVaultEmpty = true)
+                        }
                         app.memora.platform.logging.AppLog.recordUserAction(
                             "Onboarding",
                             "Completed with Add First Item -> opening Add Choice sheet"

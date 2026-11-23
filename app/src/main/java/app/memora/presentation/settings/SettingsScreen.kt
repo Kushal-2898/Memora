@@ -117,6 +117,9 @@ fun SettingsScreen(
     var defaultReminderTime by remember {
         mutableStateOf(preferences.getDefaultReminderTime())
     }
+    var isScanNudgeEnabled by remember {
+        mutableStateOf(preferences.isScanNudgeEnabled())
+    }
     var showDiagnostics by remember { mutableStateOf(false) }
     var versionTapCount by remember { mutableIntStateOf(0) }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("h:mm a") }
@@ -266,6 +269,38 @@ fun SettingsScreen(
                     subtitle = "${defaultReminderTime.format(timeFormatter)} · Tap to change",
                     testTag = "settings_reminders_card",
                     onClick = { showReminderTimePicker() },
+                )
+
+                SettingsCard(
+                    icon = Icons.Outlined.Schedule,
+                    title = "Weekly Scan Check-in",
+                    subtitle = "Gentle Sunday 7:00 PM nudge to scan new items if inactive",
+                    testTag = "settings_scan_nudge_card",
+                    onClick = {
+                        val next = !isScanNudgeEnabled
+                        isScanNudgeEnabled = next
+                        preferences.setScanNudgeEnabled(next)
+                        if (next) {
+                            app.memora.platform.notification.ScanNudgeScheduler.scheduleNextWeekly(context)
+                        } else {
+                            app.memora.platform.notification.ScanNudgeScheduler.cancel(context)
+                        }
+                    },
+                    trailingContent = {
+                        androidx.compose.material3.Switch(
+                            checked = isScanNudgeEnabled,
+                            onCheckedChange = { checked ->
+                                isScanNudgeEnabled = checked
+                                preferences.setScanNudgeEnabled(checked)
+                                if (checked) {
+                                    app.memora.platform.notification.ScanNudgeScheduler.scheduleNextWeekly(context)
+                                } else {
+                                    app.memora.platform.notification.ScanNudgeScheduler.cancel(context)
+                                }
+                            },
+                            modifier = Modifier.testTag("settings_scan_nudge_switch"),
+                        )
+                    },
                 )
             }
 
@@ -599,6 +634,7 @@ private fun SettingsCard(
     testTag: String,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Card(
         modifier = modifier
@@ -649,6 +685,11 @@ private fun SettingsCard(
                     style = MemoraTypography.caption,
                     color = TextCaption,
                 )
+            }
+
+            if (trailingContent != null) {
+                Spacer(modifier = Modifier.width(12.dp))
+                trailingContent()
             }
         }
     }

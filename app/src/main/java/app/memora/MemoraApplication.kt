@@ -44,6 +44,11 @@ class MemoraApplication : Application() {
         })
         container = DefaultAppContainer(this)
         createNotificationChannel()
+        if (container.onboardingPreferences.hasCompletedOnboarding() &&
+            container.onboardingPreferences.isScanNudgeEnabled()
+        ) {
+            app.memora.platform.notification.ScanNudgeScheduler.scheduleInitial(this, isVaultEmpty = false)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -66,10 +71,21 @@ class MemoraApplication : Application() {
             val notificationManager: NotificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+
+            val nudgeChannel = NotificationChannel(
+                SCAN_NUDGE_CHANNEL_ID,
+                "Weekly Scan Check-in",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Gentle reminders to scan newly bought groceries, medicines, and bills"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(nudgeChannel)
         }
     }
 
     companion object {
         const val REMINDER_CHANNEL_ID = "memora_reminders"
+        const val SCAN_NUDGE_CHANNEL_ID = "memora_scan_nudge"
     }
 }

@@ -3,391 +3,385 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Memora — Privacy Policy & Data Protection Charter</title>
-  <meta name="description" content="Privacy Policy for Memora: The offline-primary reminder and memory vault. Learn how we protect your personal data with local-first processing.">
+  <title>Memora — Smart Expiry Tracker &amp; Visual Reminder Vault</title>
+  <meta name="description" content="Scan groceries, medicines, bills, and warranties in seconds. Memora tracks expiry dates offline-first and reminds you before anything goes to waste.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --deep-forest: #214A34;
-      --forest-light: #2A5D41;
-      --terracotta: #C46647;
+      --forest-dark: #183827;
+      --terracotta: #E06D53;
       --paper-beige: #FAF7F2;
       --card-white: #FFFFFF;
-      --primary-navy: #2C2723;
-      --text-muted: #6E655C;
-      --border-color: #EDE7DD;
-      --accent-green: #2E7D32;
-      --accent-sage: #D8E2DC;
+      --ink: #2C2723;
+      --muted: #6E655C;
+      --border: #EDE7DD;
+      --sage-bg: #EEF4F0;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background-color: var(--paper-beige);
-      color: var(--primary-navy);
+      color: var(--ink);
       line-height: 1.65;
-      padding: 0;
-      margin: 0;
     }
 
-    header {
-      background: linear-gradient(135deg, #1B3E2C 0%, #214A34 100%);
+    nav {
+      background: var(--forest-dark);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand {
       color: #FFFFFF;
-      padding: 56px 24px 48px;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.4px;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: #D8E2DC;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .nav-links a:hover { color: #FFFFFF; }
+
+    header.hero {
+      background: linear-gradient(135deg, #183827 0%, #214A34 100%);
+      color: #FFFFFF;
+      padding: 72px 24px 64px;
       text-align: center;
       border-bottom: 4px solid var(--terracotta);
     }
 
-    .header-badge {
+    .pill {
       display: inline-block;
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.14);
       border: 1px solid rgba(255, 255, 255, 0.25);
       color: #FFFFFF;
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       padding: 6px 14px;
-      border-radius: 20px;
-      margin-bottom: 16px;
-      letter-spacing: 0.5px;
+      border-radius: 999px;
       text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 18px;
     }
 
-    header h1 {
-      font-size: 36px;
+    header.hero h1 {
+      font-size: clamp(32px, 5vw, 48px);
       font-weight: 800;
-      margin-bottom: 10px;
-      letter-spacing: -0.5px;
+      line-height: 1.15;
+      letter-spacing: -0.8px;
+      max-width: 720px;
+      margin: 0 auto 16px;
     }
 
-    header p {
-      font-size: 16px;
+    header.hero p {
+      font-size: 17px;
       color: #D8E2DC;
-      max-width: 640px;
-      margin: 0 auto;
+      max-width: 600px;
+      margin: 0 auto 28px;
     }
 
-    .meta-bar {
-      margin-top: 20px;
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.8);
+    .hero-actions {
       display: flex;
       justify-content: center;
-      gap: 24px;
+      gap: 12px;
       flex-wrap: wrap;
     }
 
+    .btn-primary {
+      background: var(--terracotta);
+      color: #FFFFFF;
+      padding: 13px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #FFFFFF;
+      padding: 13px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      display: inline-block;
+    }
+
     .container {
-      max-width: 860px;
-      margin: 40px auto;
-      padding: 0 20px 80px;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 56px 20px;
+    }
+
+    .section-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--deep-forest);
+      letter-spacing: -0.4px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .section-sub {
+      font-size: 15px;
+      color: var(--muted);
+      text-align: center;
+      max-width: 580px;
+      margin: 0 auto 36px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 56px;
     }
 
     .card {
       background: var(--card-white);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 32px;
-      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 26px;
       box-shadow: 0 4px 16px rgba(44, 39, 35, 0.04);
     }
 
-    h2 {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--deep-forest);
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    h2 .num {
+    .step-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       background: var(--deep-forest);
       color: #FFFFFF;
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
+      font-weight: 800;
+      font-size: 15px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    h3 {
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--primary-navy);
-      margin: 20px 0 8px;
-    }
-
-    p {
-      color: #4A423B;
-      font-size: 15px;
       margin-bottom: 14px;
     }
 
-    ul {
-      margin-left: 20px;
-      margin-bottom: 16px;
-      color: #4A423B;
-    }
-
-    li {
+    .card h3 {
+      font-size: 17px;
+      font-weight: 700;
       margin-bottom: 8px;
-      font-size: 15px;
+      color: var(--ink);
     }
 
-    .highlight-box {
-      background: #F3F7F4;
-      border-left: 4px solid var(--accent-green);
-      padding: 16px 20px;
-      border-radius: 0 12px 12px 0;
-      margin: 16px 0;
+    .card p {
       font-size: 14px;
-      color: #1E3D2B;
+      color: var(--muted);
     }
 
-    .deletion-box {
-      background: #FFF5F4;
-      border-left: 4px solid var(--terracotta);
-      padding: 16px 20px;
-      border-radius: 0 12px 12px 0;
-      margin: 16px 0;
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 56px;
+    }
+
+    .chip {
+      background: var(--card-white);
+      border: 1px solid var(--border);
+      color: var(--ink);
       font-size: 14px;
-      color: #5A271B;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 14px;
-    }
-
-    th, td {
-      border: 1px solid var(--border-color);
-      padding: 12px 14px;
-      text-align: left;
-    }
-
-    th {
-      background: #F8F5F0;
       font-weight: 600;
-      color: var(--primary-navy);
+      padding: 10px 16px;
+      border-radius: 999px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 20px;
+    }
+
+    .plan-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--sage-bg);
+      color: var(--deep-forest);
+      margin-bottom: 12px;
+    }
+
+    .plan-pro {
+      border: 2px solid var(--deep-forest);
+      background: #F6FAF7;
+    }
+
+    ul.check-list {
+      list-style: none;
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    ul.check-list li {
+      font-size: 14px;
+      color: #4A423B;
+      padding-left: 22px;
+      position: relative;
+    }
+
+    ul.check-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--deep-forest);
+      font-weight: 800;
     }
 
     footer {
       text-align: center;
-      padding: 32px 20px;
-      color: var(--text-muted);
+      padding: 36px 20px;
+      color: var(--muted);
       font-size: 13px;
-      border-top: 1px solid var(--border-color);
+      border-top: 1px solid var(--border);
       background: #F5F0E8;
     }
 
-    a {
+    footer a {
       color: var(--deep-forest);
-      text-decoration: underline;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 0 10px;
     }
 
-    @media (max-width: 600px) {
-      header { padding: 40px 16px 36px; }
-      header h1 { font-size: 28px; }
-      .card { padding: 22px; }
-    }
+    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 
-  <header>
-    <div class="header-badge">Data Protection Charter</div>
-    <h1>Memora Privacy Policy</h1>
-    <p>Your life, remembered — privately, locally, and on your terms.</p>
-    <div class="meta-bar">
-      <span><strong>Effective Date:</strong> November 1, 2026</span>
-      <span><strong>Last Updated:</strong> November 1, 2026</span>
-      <span><strong>Standard:</strong> DPDP Act 2023 & GDPR Compliant</span>
+  <nav>
+    <a class="brand" href="./">Memora</a>
+    <div class="nav-links">
+      <a href="#how-it-works">How It Works</a>
+      <a href="#plans">Plans</a>
+      <a href="privacy-policy.html">Privacy Policy</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="pill">Offline-First Android App</div>
+    <h1>Never lose track of what expires or comes due.</h1>
+    <p>Point your camera at groceries, medicine strips, warranties, or bills. Memora reads the date in seconds and keeps reminding you until it's done.</p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#how-it-works">See How It Works</a>
+      <a class="btn-secondary" href="privacy-policy.html">Privacy &amp; Data Charter</a>
     </div>
   </header>
 
   <main class="container">
 
-    <!-- Section 1 -->
-    <article class="card">
-      <h2><span class="num">1</span> Local-First Architecture & Data Minimisation</h2>
-      <p>Memora is engineered under the principle of <strong>Privacy-by-Design</strong>. We believe that your personal documents, medical prescriptions, bills, insurance policies, and expiry dates belong strictly to you.</p>
-      
-      <div class="highlight-box">
-        <strong>Guiding Commitment:</strong> Memora never sells, rents, licenses, or shares your personal data, document images, or expiry dates with advertisers or third-party data brokers. Zero advertising SDKs are embedded in the app.
+    <!-- How It Works -->
+    <section id="how-it-works">
+      <h2 class="section-title">How Memora Works</h2>
+      <p class="section-sub">Built for real-world packaging — fast, private, and reliable even without internet.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="step-badge">1</div>
+          <h3>Point &amp; Scan</h3>
+          <p>Snap any product label, medicine blister, or bill. On-device ML Kit OCR and Gemini AI automatically separate MFG vs. EXP dates and filter out packaging noise.</p>
+        </div>
+
+        <div class="card">
+          <div class="step-badge">2</div>
+          <h3>Exact Reminders That Stick</h3>
+          <p>Scheduled directly with Android AlarmManager so battery savers don't kill them — with 9:00 AM morning alerts, 6:00 PM "Due Today" follow-ups, and 3-hour intra-day snooze.</p>
+        </div>
+
+        <div class="card">
+          <div class="step-badge">3</div>
+          <h3>Private &amp; Backed Up</h3>
+          <p>Everything works offline-first on your device with secure Google account sync, zero advertising SDKs, and instant one-tap account and data erasure.</p>
+        </div>
       </div>
+    </section>
 
-      <h3>A. Guest Mode (Default)</h3>
-      <ul>
-        <li>You can utilize 100% of core scanning, tracking, and local reminders without creating an account.</li>
-        <li>Zero personal identifiers (names, emails, phone numbers, passwords) are collected or required.</li>
-        <li>All extracted dates and images remain strictly confined to your device's sandboxed storage.</li>
-      </ul>
-
-      <h3>B. Connected Account Mode (Optional Google Sign-In)</h3>
-      <ul>
-        <li>If you choose to link a Google Account, Memora receives your basic Google profile (Display Name, Email Address, and Avatar URL) solely to authenticate your identity.</li>
-        <li>Account linking enables optional encrypted cloud backup and cross-device sync.</li>
-      </ul>
-    </article>
-
-    <!-- Section 2 -->
-    <article class="card">
-      <h2><span class="num">2</span> Hybrid On-Device & Optional Cloud AI Processing</h2>
-      <p>When you capture photos of document labels, food items, medicine strips, or receipts:</p>
-      <ul>
-        <li><strong>On-Device Machine Learning (Default):</strong> Optical Character Recognition (OCR) is performed entirely on your device using Google ML Kit's local neural engine. Scanned photos never leave your device for standard date detection.</li>
-        <li><strong>No Silent Background Transmissions:</strong> Photos and candidate text are never streamed to remote servers during standard capture.</li>
-        <li><strong>Optional Cloud AI Refinement (Gemini):</strong> For difficult, low-contrast, or multi-date packaging, Memora provides an optional "Analyze with AI" feature. This is triggered <em>strictly upon your manual, explicit tap</em> on the scan review bottom sheet. Images are transmitted securely over encrypted TLS solely for date extraction and are never retained, sold, or used for model training.</li>
-      </ul>
-    </article>
-
-    <!-- Section 3 -->
-    <article class="card">
-      <h2><span class="num">3</span> Google Play Data Safety Disclosures</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Data Category</th>
-            <th>Collected</th>
-            <th>Shared</th>
-            <th>Purpose</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Personal Info</strong> (Name, Email)</td>
-            <td>Optional (only if signing in with Google)</td>
-            <td>No</td>
-            <td>Account authentication & optional cloud synchronization.</td>
-          </tr>
-          <tr>
-            <td><strong>Photos & Documents</strong></td>
-            <td>No (processed locally on-device)</td>
-            <td>No</td>
-            <td>On-device OCR date and category extraction.</td>
-          </tr>
-          <tr>
-            <td><strong>Financial / Health Info</strong></td>
-            <td>No</td>
-            <td>No</td>
-            <td>None.</td>
-          </tr>
-          <tr>
-            <td><strong>Device / Other IDs</strong></td>
-            <td>No advertising IDs</td>
-            <td>No</td>
-            <td>Firebase installation token (solely for crash diagnostics).</td>
-          </tr>
-        </tbody>
-      </table>
-    </article>
-
-    <!-- Section 4 -->
-    <article class="card">
-      <h2><span class="num">4</span> Account Deletion & Data Erasure (Right to Erasure)</h2>
-      <p>Under India's DPDP Act, 2023, EU GDPR, and Google Play Data Safety policies, you hold complete autonomy over your data.</p>
-      
-      <div class="deletion-box">
-        <strong>How to Delete Your Account and Data:</strong>
-        <ul style="margin-top: 8px; margin-bottom: 0;">
-          <li><strong>In-App Deletion:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Delete Account</em>. Confirming instantly removes your Google account authentication, purges your session, and wipes cloud-associated backup records.</li>
-          <li><strong>Erase Local Data:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Erase All Data</em> to permanently destroy all locally stored memories and images.</li>
-          <li><strong>Web / Email Deletion Request:</strong> You can also request complete deletion of your account and any associated data without opening the app by emailing <a href="mailto:privacy@memora.app">privacy@memora.app</a> or <a href="mailto:klabsstudios@gmail.com">klabsstudios@gmail.com</a> with the subject "Account Deletion Request". Requests are honored within 48 hours.</li>
-        </ul>
+    <!-- What You Can Track -->
+    <section>
+      <h2 class="section-title">One Vault for Everyday Dates</h2>
+      <p class="section-sub">Stop throwing away expired food or paying late fees on forgotten bills.</p>
+      <div class="chips">
+        <span class="chip">🥛 Groceries &amp; Dairy</span>
+        <span class="chip">💊 Medicines &amp; Prescriptions</span>
+        <span class="chip">🧾 Bills &amp; Utilities</span>
+        <span class="chip">🛡️ Product Warranties</span>
+        <span class="chip">🔄 Subscriptions &amp; Renewals</span>
+        <span class="chip">📄 Passports &amp; Documents</span>
       </div>
-    </article>
+    </section>
 
-    <!-- Section 5 -->
-    <article class="card">
-      <h2><span class="num">5</span> Device Permissions & Justifications</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Permission</th>
-            <th>Necessity & Usage</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>CAMERA</code></td>
-            <td>Required strictly to capture product labels, warranty cards, and expiry dates inside the viewfinder. Photos are never uploaded without consent.</td>
-          </tr>
-          <tr>
-            <td><code>POST_NOTIFICATIONS</code></td>
-            <td>Required to post local reminder alarms when an item is nearing its expiration date.</td>
-          </tr>
-          <tr>
-            <td><code>SCHEDULE_EXACT_ALARM</code></td>
-            <td>Ensures notifications trigger accurately at your preferred reminder time (e.g., 09:00 AM).</td>
-          </tr>
-        </tbody>
-      </table>
-    </article>
+    <!-- Free vs Pro -->
+    <section id="plans">
+      <h2 class="section-title">Simple, Fair Plans</h2>
+      <p class="section-sub">Try the full scanner free every month — upgrade via Google Play only when you need unlimited scans.</p>
 
-    <!-- Section 6 -->
-    <article class="card" id="grievances">
-      <h2><span class="num">6</span> Grievance Officer & Statutory Redressal</h2>
-      <p>In accordance with Section 13 of the Digital Personal Data Protection Act, 2023 and the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, any questions, concerns, complaints, or legal notices regarding data handling may be directed to our designated Grievance Officer:</p>
-      <ul>
-        <li><strong>Officer / Contact:</strong> Data Protection &amp; Grievance Officer</li>
-        <li><strong>Developer / Entity:</strong> K-Labs Studios</li>
-        <li><strong>Official Contact Email:</strong> <a href="mailto:klabsstudios@gmail.com">klabsstudios@gmail.com</a></li>
-        <li><strong>Alternative Email:</strong> <a href="mailto:privacy@memora.app">privacy@memora.app</a></li>
-        <li><strong>Turnaround Time:</strong> Acknowledgment within 48 hours; statutory resolution within 30 days.</li>
-      </ul>
-    </article>
+      <div class="grid-2">
+        <div class="card">
+          <span class="plan-tag">Free Forever</span>
+          <h3>Memora Free</h3>
+          <p>Everything you need to start tracking important dates right away.</p>
+          <ul class="check-list">
+            <li>5 smart scans per month (ML Kit + Gemini AI included)</li>
+            <li>Unlimited manual item entry &amp; reminders</li>
+            <li>Exact morning alarms, 3-hour snooze &amp; evening Due-Today alerts</li>
+            <li>Secure Google Cloud backup &amp; sync</li>
+          </ul>
+        </div>
 
-    <!-- Section 7 -->
-    <article class="card" id="limits">
-      <h2><span class="num">7</span> Terms of Use &amp; Limitation of Liability</h2>
-      <p>By downloading, installing, scanning with, or using Memora, you expressly agree to the following terms and liability limitations:</p>
-      
-      <div class="highlight-box">
-        <strong>Important Safety Notice:</strong> Memora is designed strictly as an auxiliary, personal organizational reminder aid. It is NOT a medical device, Clinical Decision Support System (CDSS), or laboratory food safety testing tool.
+        <div class="card plan-pro">
+          <span class="plan-tag">Memora Pro · Google Play</span>
+          <h3>Memora Pro</h3>
+          <p>For households and power users who scan groceries, medicines, and bills every week.</p>
+          <ul class="check-list">
+            <li>Unlimited camera &amp; gallery smart scans (ML Kit + Gemini AI)</li>
+            <li>Unlimited custom categories &amp; organization tags</li>
+            <li>Flexible Monthly, Annual, or UPI Prepaid passes via Google Play</li>
+            <li>Cancel or manage anytime in Google Play Store</li>
+          </ul>
+        </div>
       </div>
-
-      <h3>A. Mandatory User Physical Verification</h3>
-      <p>Optical Character Recognition (OCR) and automated date detection algorithms are subject to real-world optical noise, curved packaging distortion, faded ink, and varying lighting conditions. You agree that:</p>
-      <ul>
-        <li>You retain sole responsibility for physically inspecting all food, beverage, medicine, cosmetics, and perishable items for freshness, spoilage, odor, physical defects, and physical manufacturer labels before consumption or administration.</li>
-        <li>Never consume spoiled food or administer expired medicines regardless of any date recorded or displayed in the application.</li>
-        <li>For medical and pharmaceutical products, always follow the guidance of a qualified healthcare professional and the official manufacturer package leaflet.</li>
-      </ul>
-
-      <h3>B. Disclaimer of Warranties &amp; "As-Is" Provision</h3>
-      <p>Memora is provided strictly on an <strong>"AS-IS"</strong> and <strong>"AS-AVAILABLE"</strong> basis without warranties of any kind, whether express, statutory, or implied, including but not limited to the accuracy of extracted dates, uninterrupted notification delivery, or fitness for a particular purpose.</p>
-
-      <h3>C. Limitation of Damages</h3>
-      <p>To the maximum extent permitted by applicable law, K-Labs Studios and its developers, contributors, and affiliates shall not be liable for any direct, indirect, incidental, consequential, special, or exemplary damages, including but not limited to illness, foodborne disease, allergic reactions, personal injury, medical costs, spoiled groceries, missed due dates, or device battery management shutdowns resulting from reliance on the application.</p>
-
-      <h3>D. Governing Law &amp; Jurisdiction</h3>
-      <p>These terms, disclaimers, and data protection policies shall be governed by and construed in accordance with the <strong>laws of India</strong>. Any disputes arising in connection with the application shall be subject to the exclusive jurisdiction of the competent courts in India.</p>
-    </article>
+    </section>
 
   </main>
 
   <footer>
-    <div style="margin-bottom: 12px; font-weight: 600;">
-      <a href="#section-1" style="color: inherit; margin: 0 8px; text-decoration: none;">Privacy</a> •
-      <a href="#limits" style="color: inherit; margin: 0 8px; text-decoration: none;">Terms &amp; Liability</a> •
-      <a href="#grievances" style="color: inherit; margin: 0 8px; text-decoration: none;">Grievances</a> •
-      <a href="mailto:klabsstudios@gmail.com" style="color: inherit; margin: 0 8px; text-decoration: none;">Contact Support</a>
+    <div style="margin-bottom: 12px;">
+      <a href="privacy-policy.html">Privacy Policy</a> •
+      <a href="privacy-policy.html#limits">Terms &amp; Liability</a> •
+      <a href="privacy-policy.html#grievances">Grievance Officer</a> •
+      <a href="mailto:klabsstudios@gmail.com">Contact Support</a>
     </div>
-    <p>&copy; 2026 Memora by K-Labs Studios. All rights reserved. Governed by the laws of India.</p>
+    <p>&copy; 2026 Memora by K-Labs Studios. All rights reserved.</p>
   </footer>
 
 </body>

@@ -91,6 +91,7 @@ fun AddMemoryBottomSheet(
     onDismiss: () -> Unit,
     preferences: OnboardingPreferences,
     modifier: Modifier = Modifier,
+    billingGateway: app.memora.domain.gateway.BillingGateway? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     val context = LocalContext.current
@@ -643,37 +644,17 @@ fun AddMemoryBottomSheet(
         )
     }
 
-    // Paywall Dialog for Non-Pro users trying to add custom category
+    // Paywall Sheet for Non-Pro users trying to add custom category
     if (showProPaywallDialog) {
-        AlertDialog(
-            onDismissRequest = { showProPaywallDialog = false },
-            containerColor = CardWhite,
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color(0xFFF59E0B),
-                    modifier = Modifier.size(28.dp),
-                )
-            },
-            title = {
-                Text(
-                    text = "Memora Pro Feature",
-                    style = MemoraTypography.title,
-                )
-            },
-            text = {
-                Text(
-                    text = "Custom categories are exclusively available for Memora Pro members.\n\n" +
-                        "Organize your memories by household, vehicle, cosmetics, pet care, and more.\n\n" +
-                        "Upgrade to Pro in Settings or restore an existing purchase.",
-                    style = MemoraTypography.body,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showProPaywallDialog = false }) {
-                    Text("Got it")
-                }
+        app.memora.presentation.common.ProPaywallBottomSheet(
+            billingGateway = billingGateway,
+            headline = "Unlock Custom Categories",
+            subtitle = "Create custom categories for vehicles, cosmetics, pet care, and more — plus unlimited ML Kit & Gemini AI scans.",
+            onDismiss = { showProPaywallDialog = false },
+            onProUnlocked = {
+                showProPaywallDialog = false
+                newCategoryInput = ""
+                showNewCategoryDialog = true
             },
         )
     }

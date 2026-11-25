@@ -439,20 +439,7 @@ fun MemoraNavHost(
                         navController.popBackStack()
                     },
                     onClearAllData = {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            app.memora.domain.usecase.ClearAllUserDataUseCase(
-                                reminderRepository = appContainer.reminderRepository,
-                                notificationScheduler = appContainer.notificationScheduler,
-                                onClearDatabaseAndFiles = {
-                                    appContainer.database.clearAllTables()
-                                    appContainer.onboardingPreferences.clearAllUserData()
-                                    runCatching {
-                                        java.io.File(context.filesDir, "captures").deleteRecursively()
-                                    }
-                                    app.memora.platform.logging.AppLog.clear()
-                                }
-                            ).invoke()
-                        }
+                        appContainer.clearAllUserDataUseCase()
                     },
                     onDeleteAccountCloudData = {
                         appContainer.firestoreSyncManager.deleteAllRemoteData()
@@ -606,37 +593,15 @@ fun MemoraNavHost(
         AddMemoryBottomSheet(
             onSave = { title, eventType, eventDate, remindDaysBefore, reminderTime, customCategory ->
                 coroutineScope.launch {
-                    val memoryId = java.util.UUID.randomUUID().toString()
-                    val now = java.time.Instant.now()
-                    val memory = app.memora.domain.model.Memory(
-                        id = memoryId,
+                    appContainer.createMemoryUseCase.saveAndSchedule(
                         title = title,
-                        description = customCategory?.takeIf { it.isNotBlank() },
                         eventType = eventType,
                         eventDate = eventDate,
-                        timeZoneId = java.time.ZoneId.systemDefault().id,
-                        createdAt = now,
-                        updatedAt = now,
+                        remindDaysBefore = remindDaysBefore,
+                        reminderTime = reminderTime ?: appContainer.onboardingPreferences.getDefaultReminderTime(),
+                        customCategory = customCategory,
+                        notificationScheduler = appContainer.notificationScheduler,
                     )
-                    val reminder = app.memora.domain.model.Reminder(
-                        id = java.util.UUID.randomUUID().toString(),
-                        memoryId = memoryId,
-                        reminderStartDate = eventDate.minusDays(remindDaysBefore.toLong()),
-                        reminderTime = reminderTime,
-                        createdAt = now,
-                        updatedAt = now,
-                    )
-                    appContainer.createMemoryUseCase(memory, reminder).onSuccess {
-                        appContainer.notificationScheduler.scheduleReminder(
-                            memoryId = memoryId,
-                            reminderId = reminder.id,
-                            title = title,
-                            reminderStartDate = reminder.reminderStartDate,
-                            eventDate = eventDate,
-                            timeZoneId = memory.timeZoneId,
-                            reminderTime = reminderTime ?: appContainer.onboardingPreferences.getDefaultReminderTime(),
-                        )
-                    }
                     showManualEntrySheet = false
                 }
             },
@@ -644,6 +609,7 @@ fun MemoraNavHost(
                 showManualEntrySheet = false
             },
             preferences = appContainer.onboardingPreferences,
+            billingGateway = appContainer.billingGateway,
         )
     }
 

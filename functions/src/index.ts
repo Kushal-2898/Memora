@@ -27,15 +27,19 @@ interface ExtractMemoryResponse {
   alternatives: DateAlternative[];
 }
 
+const MAX_BASE64_CHARS = 5_600_000; // ~4 MB decoded image cap
+const MAX_MONTHLY_AI_CALLS_PER_USER = 300; // Server-side abuse circuit breaker
+
 export const extractMemoryWithGemini = onCall(
   {
     secrets: [geminiApiKey],
     timeoutSeconds: 60,
     memory: "512MiB",
+    maxInstances: 10,
   },
   async (request): Promise<ExtractMemoryResponse> => {
     // 1. Enforce authentication
-    if (!request.auth) {
+    if (!request.auth || !request.auth.uid) {
       throw new HttpsError(
         "unauthenticated",
         "You must be signed in to use Gemini AI extraction."
@@ -49,6 +53,34 @@ export const extractMemoryWithGemini = onCall(
         "Request must contain a prompt or imageBase64."
       );
     }
+
+    if (data.imageBase64 && data.imageBase64.length > MAX_BASE64_CHARS) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Image payload exceeds maximum allowed size (4 MB)."
+      );
+    }
+
+    // 2. Server-side per-UID monthly rate limit guard against API abuse
+    const uid = request.auth.uid;
+    const now = new Date();
+    const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const usageRef = admin.firestore().doc(`users/${uid}/usage/${monthKey}`);
+    await admin.firestore().runTransaction(async (tx) => {
+      const snap = await tx.get(usageRef);
+      const aiCalls = (snap.data()?.aiCallCount as number | undefined) ?? 0;
+      if (aiCalls >= MAX_MONTHLY_AI_CALLS_PER_USER) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "Monthly AI fair-use limit reached for this account."
+        );
+      }
+      tx.set(
+        usageRef,
+        { aiCallCount: aiCalls + 1, lastAiCallAt: Date.now() },
+        { merge: true }
+      );
+    });
 
     const apiKey = geminiApiKey.value() || process.env.GEMINI_API_KEY;
     if (!apiKey) {

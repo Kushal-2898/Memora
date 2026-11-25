@@ -22,7 +22,8 @@ import kotlinx.coroutines.withContext
 class DefaultMemoryRepository(
     private val memoryDao: MemoryDao,
     private val reminderDao: ReminderDao,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val onMutated: (() -> Unit)? = null,
 ) : MemoryRepository {
 
     override fun observeMemories(): Flow<List<MemoryWithReminders>> {
@@ -50,6 +51,7 @@ class DefaultMemoryRepository(
             }
         }.onSuccess {
             app.memora.platform.logging.AppLog.recordDatabaseOperation("createMemory", System.currentTimeMillis() - start, true)
+            onMutated?.invoke()
         }.recoverCatching { error ->
             val cat = app.memora.platform.logging.DiagnosticErrorCategory.fromThrowable(error)
             app.memora.platform.logging.AppLog.recordDatabaseOperation("createMemory", System.currentTimeMillis() - start, false, cat)
@@ -64,6 +66,7 @@ class DefaultMemoryRepository(
             memoryDao.update(memory.toEntity())
         }.onSuccess {
             app.memora.platform.logging.AppLog.recordDatabaseOperation("updateMemory", System.currentTimeMillis() - start, true)
+            onMutated?.invoke()
         }.recoverCatching { error ->
             val cat = app.memora.platform.logging.DiagnosticErrorCategory.fromThrowable(error)
             app.memora.platform.logging.AppLog.recordDatabaseOperation("updateMemory", System.currentTimeMillis() - start, false, cat)
@@ -81,6 +84,7 @@ class DefaultMemoryRepository(
             )
         }.onSuccess {
             app.memora.platform.logging.AppLog.recordDatabaseOperation("updateMemoryWithReminders", System.currentTimeMillis() - start, true)
+            onMutated?.invoke()
         }.recoverCatching { error ->
             val cat = app.memora.platform.logging.DiagnosticErrorCategory.fromThrowable(error)
             app.memora.platform.logging.AppLog.recordDatabaseOperation("updateMemoryWithReminders", System.currentTimeMillis() - start, false, cat)

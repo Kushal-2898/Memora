@@ -93,6 +93,12 @@ interface AppContainer {
     val deleteMemoryUseCase: DeleteMemoryUseCase
     val deleteReminderUseCase: DeleteReminderUseCase
     val snoozeReminderUseCase: app.memora.domain.usecase.SnoozeReminderUseCase
+    val clearAllUserDataUseCase: app.memora.domain.usecase.ClearAllUserDataUseCase
+        get() = app.memora.domain.usecase.ClearAllUserDataUseCase(
+            reminderRepository = reminderRepository,
+            notificationScheduler = notificationScheduler,
+            onClearDatabaseAndFiles = { database.clearAllTables() },
+        )
 
     // Stage 2: Capture system dependencies
     val imageStorage: ImageStorage
@@ -133,22 +139,50 @@ class DefaultAppContainer(
     override var clockProvider: ClockProvider = SystemClockProvider()
 
     override val memoryRepository: MemoryRepository by lazy {
-        DefaultMemoryRepository(database.memoryDao(), database.reminderDao())
+        DefaultMemoryRepository(
+            memoryDao = database.memoryDao(),
+            reminderDao = database.reminderDao(),
+            onMutated = { firestoreSyncManager.triggerBackgroundSync() },
+        )
     }
 
     override val reminderRepository: ReminderRepository by lazy {
-        DefaultReminderRepository(database.reminderDao(), database.memoryDao())
+        DefaultReminderRepository(
+            reminderDao = database.reminderDao(),
+            memoryDao = database.memoryDao(),
+            onMutated = { firestoreSyncManager.triggerBackgroundSync() },
+        )
     }
 
     override val entitlementRepository: EntitlementRepository by lazy {
         app.memora.data.repository.DefaultEntitlementRepository(onboardingPreferences)
     }
 
+    override val clearAllUserDataUseCase: app.memora.domain.usecase.ClearAllUserDataUseCase by lazy {
+        app.memora.domain.usecase.ClearAllUserDataUseCase(
+            reminderRepository = reminderRepository,
+            notificationScheduler = notificationScheduler,
+            onClearDatabaseAndFiles = {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    database.clearAllTables()
+                    onboardingPreferences.clearAllUserData()
+                    context?.filesDir?.let { filesDir ->
+                        runCatching { java.io.File(filesDir, "captures").deleteRecursively() }
+                    }
+                    app.memora.platform.logging.AppLog.clear()
+                }
+            },
+        )
+    }
+
     override val authRepository: app.memora.domain.repository.AuthRepository by lazy {
         app.memora.data.repository.DefaultAuthRepository(
             onboardingPreferences = onboardingPreferences,
+            onBeforeSignOut = {
+                firestoreSyncManager.sync()
+            },
             onSignOutCleanup = {
-                database.clearAllTables()
+                clearAllUserDataUseCase()
             },
         )
     }

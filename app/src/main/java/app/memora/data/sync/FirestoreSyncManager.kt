@@ -15,9 +15,14 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -39,6 +44,20 @@ class FirestoreSyncManager(
     private val firestore: FirebaseFirestore? = runCatching { FirebaseFirestore.getInstance() }.getOrNull(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    private val syncScope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val syncMutex = Mutex()
+
+    /**
+     * Triggers an asynchronous, mutex-serialized cloud sync whenever local repositories mutate.
+     */
+    fun triggerBackgroundSync() {
+        val user = authRepository.currentUser.value ?: return
+        if (!isValidCloudUser(user) || firestore == null) return
+        syncScope.launch {
+            runCatching { sync() }
+        }
+    }
+
     private fun isValidCloudUser(user: app.memora.domain.model.AuthUser?): Boolean {
         if (user == null || user.isAnonymous || user.uid.isBlank()) return false
         if (user.uid.startsWith("guest") || user.uid.startsWith("email_") || user.uid.startsWith("google_")) return false
@@ -50,11 +69,12 @@ class FirestoreSyncManager(
      * Only executes when an authenticated user (with real Firebase UID) is signed in.
      */
     suspend fun sync(): Result<Int> = withContext(ioDispatcher) {
-        val user = authRepository.currentUser.value ?: return@withContext Result.success(0)
-        if (!isValidCloudUser(user)) {
-            return@withContext Result.success(0)
-        }
-        val db = firestore ?: return@withContext Result.success(0)
+        syncMutex.withLock {
+            val user = authRepository.currentUser.value ?: return@withContext Result.success(0)
+            if (!isValidCloudUser(user)) {
+                return@withContext Result.success(0)
+            }
+            val db = firestore ?: return@withContext Result.success(0)
 
         runCatching {
             var syncedCount = 0
@@ -199,6 +219,7 @@ class FirestoreSyncManager(
             }
 
             syncedCount
+            }
         }
     }
 

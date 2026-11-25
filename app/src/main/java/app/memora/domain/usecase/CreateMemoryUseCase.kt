@@ -64,4 +64,45 @@ class CreateMemoryUseCase(
         )
         return invoke(memory, initialReminder).map { id }
     }
+
+    suspend fun saveAndSchedule(
+        title: String,
+        eventType: app.memora.domain.model.EventType,
+        eventDate: java.time.LocalDate,
+        remindDaysBefore: Int,
+        reminderTime: java.time.LocalTime,
+        customCategory: String? = null,
+        notificationScheduler: app.memora.platform.notification.NotificationScheduler,
+        timeZoneId: String = java.time.ZoneId.systemDefault().id,
+    ): Result<String> {
+        val now = java.time.Instant.now()
+        val memoryId = java.util.UUID.randomUUID().toString()
+        val reminder = Reminder(
+            id = java.util.UUID.randomUUID().toString(),
+            memoryId = memoryId,
+            reminderStartDate = eventDate.minusDays(remindDaysBefore.coerceAtLeast(0).toLong()),
+            reminderTime = reminderTime,
+            createdAt = now,
+            updatedAt = now,
+        )
+        return invoke(
+            title = title,
+            eventType = eventType,
+            eventDate = eventDate,
+            timeZoneId = timeZoneId,
+            id = memoryId,
+            description = customCategory?.takeIf { it.isNotBlank() },
+            initialReminder = reminder,
+        ).onSuccess {
+            notificationScheduler.scheduleReminder(
+                memoryId = memoryId,
+                reminderId = reminder.id,
+                title = title,
+                reminderStartDate = reminder.reminderStartDate,
+                eventDate = eventDate,
+                timeZoneId = timeZoneId,
+                reminderTime = reminderTime,
+            )
+        }
+    }
 }

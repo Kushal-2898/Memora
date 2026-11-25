@@ -7,19 +7,38 @@ const admin = require("firebase-admin");
 const generative_ai_1 = require("@google/generative-ai");
 admin.initializeApp();
 const geminiApiKey = (0, params_1.defineSecret)("GEMINI_API_KEY");
+const MAX_BASE64_CHARS = 5_600_000; // ~4 MB decoded image cap
+const MAX_MONTHLY_AI_CALLS_PER_USER = 300; // Server-side abuse circuit breaker
 exports.extractMemoryWithGemini = (0, https_1.onCall)({
     secrets: [geminiApiKey],
     timeoutSeconds: 60,
     memory: "512MiB",
+    maxInstances: 10,
 }, async (request) => {
     // 1. Enforce authentication
-    if (!request.auth) {
+    if (!request.auth || !request.auth.uid) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in to use Gemini AI extraction.");
     }
     const data = request.data;
     if (!data || (!data.prompt && !data.imageBase64)) {
         throw new https_1.HttpsError("invalid-argument", "Request must contain a prompt or imageBase64.");
     }
+    if (data.imageBase64 && data.imageBase64.length > MAX_BASE64_CHARS) {
+        throw new https_1.HttpsError("invalid-argument", "Image payload exceeds maximum allowed size (4 MB).");
+    }
+    // 2. Server-side per-UID monthly rate limit guard against API abuse
+    const uid = request.auth.uid;
+    const now = new Date();
+    const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const usageRef = admin.firestore().doc(`users/${uid}/usage/${monthKey}`);
+    await admin.firestore().runTransaction(async (tx) => {
+        const snap = await tx.get(usageRef);
+        const aiCalls = snap.data()?.aiCallCount ?? 0;
+        if (aiCalls >= MAX_MONTHLY_AI_CALLS_PER_USER) {
+            throw new https_1.HttpsError("resource-exhausted", "Monthly AI fair-use limit reached for this account.");
+        }
+        tx.set(usageRef, { aiCallCount: aiCalls + 1, lastAiCallAt: Date.now() }, { merge: true });
+    });
     const apiKey = geminiApiKey.value() || process.env.GEMINI_API_KEY;
     if (!apiKey) {
         throw new https_1.HttpsError("failed-precondition", "Server-side GEMINI_API_KEY is not configured in Secret Manager.");

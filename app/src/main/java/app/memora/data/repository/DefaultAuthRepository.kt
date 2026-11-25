@@ -5,18 +5,24 @@ import app.memora.domain.model.AuthUser
 import app.memora.domain.repository.AuthRepository
 import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class DefaultAuthRepository(
     private val onboardingPreferences: OnboardingPreferences? = null,
     private val firebaseAuth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val onBeforeSignOut: (suspend () -> Unit)? = null,
     private val onSignOutCleanup: (suspend () -> Unit)? = null,
 ) : AuthRepository {
 
@@ -163,19 +169,40 @@ class DefaultAuthRepository(
     }
 
     override suspend fun signOut(): Result<Unit> = runCatching {
+        withContext(ioDispatcher) {
+            runCatching { onBeforeSignOut?.invoke() }
+        }
         firebaseAuth?.signOut()
         onboardingPreferences?.clearAuth()
         onboardingPreferences?.setOnboardingCompleted(false)
         _currentUser.value = null
-        onSignOutCleanup?.invoke()
+        withContext(ioDispatcher) {
+            onSignOutCleanup?.invoke()
+        }
     }
 
     override suspend fun deleteAccount(): Result<Unit> = runCatching {
-        firebaseAuth?.currentUser?.delete()?.await()
+        val recentLoginError = try {
+            firebaseAuth?.currentUser?.delete()?.await()
+            null
+        } catch (e: FirebaseAuthRecentLoginRequiredException) {
+            e
+        }
+        if (recentLoginError != null) {
+            firebaseAuth?.signOut()
+        }
         onboardingPreferences?.clearAuth()
         onboardingPreferences?.setOnboardingCompleted(false)
         _currentUser.value = null
-        onSignOutCleanup?.invoke()
+        withContext(ioDispatcher) {
+            onSignOutCleanup?.invoke()
+        }
+        if (recentLoginError != null) {
+            throw IllegalStateException(
+                "Cloud data erased. For security, sign in once more and tap Delete Account to finalize login removal.",
+                recentLoginError,
+            )
+        }
     }
 
     private fun persistUser(user: AuthUser) {

@@ -22,7 +22,8 @@ import java.time.Instant
 class DefaultReminderRepository(
     private val reminderDao: ReminderDao,
     private val memoryDao: MemoryDao,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val onMutated: (() -> Unit)? = null,
 ) : ReminderRepository {
 
     override fun observeReminders(): Flow<List<Reminder>> {
@@ -48,6 +49,8 @@ class DefaultReminderRepository(
     override suspend fun createReminder(reminder: Reminder): Result<Unit> = withContext(ioDispatcher) {
         runCatching {
             reminderDao.insert(reminder.toEntity())
+        }.onSuccess {
+            onMutated?.invoke()
         }.recoverCatching { error ->
             throw MemoraError.Database(error.message ?: "Failed to persist reminder to database.")
         }
@@ -56,6 +59,8 @@ class DefaultReminderRepository(
     override suspend fun updateReminder(reminder: Reminder): Result<Unit> = withContext(ioDispatcher) {
         runCatching {
             reminderDao.update(reminder.toEntity())
+        }.onSuccess {
+            onMutated?.invoke()
         }.recoverCatching { error ->
             throw MemoraError.Database(error.message ?: "Failed to update reminder in database.")
         }
@@ -74,6 +79,12 @@ class DefaultReminderRepository(
                 updatedAtEpochMs = completedAt.toEpochMilli(),
             )
             reminderDao.update(updated)
+            memoryDao.getById(existing.memoryId)?.let { parent ->
+                memoryDao.update(parent.copy(updatedAtEpochMs = completedAt.toEpochMilli()))
+            }
+            Unit
+        }.onSuccess {
+            onMutated?.invoke()
         }.recoverCatching { error ->
             if (error is MemoraError) throw error
             throw MemoraError.Database(error.message ?: "Failed to complete reminder.")
@@ -83,6 +94,8 @@ class DefaultReminderRepository(
     override suspend fun deleteReminder(id: String): Result<Unit> = withContext(ioDispatcher) {
         runCatching {
             reminderDao.deleteById(id)
+        }.onSuccess {
+            onMutated?.invoke()
         }.recoverCatching { error ->
             throw MemoraError.Database(error.message ?: "Failed to delete reminder from database.")
         }

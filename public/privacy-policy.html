@@ -214,44 +214,44 @@
     <p>Your life, remembered — privately, locally, and on your terms.</p>
     <div class="meta-bar">
       <span><strong>Effective Date:</strong> November 1, 2026</span>
-      <span><strong>Last Updated:</strong> November 1, 2026</span>
-      <span><strong>Standard:</strong> DPDP Act 2023 & GDPR Compliant</span>
+      <span><strong>Last Updated:</strong> November 27, 2026</span>
+      <span><strong>Standard:</strong> DPDP Act 2023 &amp; GDPR Compliant</span>
     </div>
   </header>
 
   <main class="container">
 
     <!-- Section 1 -->
-    <article class="card">
-      <h2><span class="num">1</span> Local-First Architecture & Data Minimisation</h2>
-      <p>Memora is engineered under the principle of <strong>Privacy-by-Design</strong>. We believe that your personal documents, medical prescriptions, bills, insurance policies, and expiry dates belong strictly to you.</p>
+    <article class="card" id="section-1">
+      <h2><span class="num">1</span> Offline-First Architecture &amp; Account Authentication</h2>
+      <p>Memora is engineered under the principle of <strong>Privacy-by-Design</strong>. Your personal documents, medical prescriptions, bills, insurance policies, and expiry dates belong strictly to you.</p>
       
       <div class="highlight-box">
         <strong>Guiding Commitment:</strong> Memora never sells, rents, licenses, or shares your personal data, document images, or expiry dates with advertisers or third-party data brokers. Zero advertising SDKs are embedded in the app.
       </div>
 
-      <h3>A. Guest Mode (Default)</h3>
+      <h3>A. Account Sign-In (Google or Email)</h3>
       <ul>
-        <li>You can utilize 100% of core scanning, tracking, and local reminders without creating an account.</li>
-        <li>Zero personal identifiers (names, emails, phone numbers, passwords) are collected or required.</li>
-        <li>All extracted dates and images remain strictly confined to your device's sandboxed storage.</li>
+        <li>Memora requires signing in with a <strong>Google Account</strong> (via Android Credential Manager) or <strong>Email &amp; Password</strong> (via Firebase Authentication) to protect and synchronize your vault across sessions and devices.</li>
+        <li>When signing in with Google, Memora receives only your basic profile (Display Name, Email Address, and Avatar URL) strictly for authentication and account identification.</li>
+        <li>All cloud-backed records are stored privately in user-scoped Cloud Firestore collections (<code>users/{uid}/...</code>) in the <code>asia-south1</code> region, protected by strict authentication rules so no other user can read or write your data.</li>
       </ul>
 
-      <h3>B. Connected Account Mode (Optional Google Sign-In)</h3>
+      <h3>B. Offline-First Local Storage &amp; Automatic Sync</h3>
       <ul>
-        <li>If you choose to link a Google Account, Memora receives your basic Google profile (Display Name, Email Address, and Avatar URL) solely to authenticate your identity.</li>
-        <li>Account linking enables optional encrypted cloud backup and cross-device sync.</li>
+        <li>Your memories, reminders, and exact hardware alarms run offline-first on your device's sandboxed SQLite database (Room), and automatically synchronize with your private Cloud Firestore vault when online.</li>
+        <li>Signing out flushes pending updates, cancels local alarms, and wipes the local database so your data cannot leak to another user on the same device.</li>
       </ul>
     </article>
 
     <!-- Section 2 -->
     <article class="card">
-      <h2><span class="num">2</span> Hybrid On-Device & Optional Cloud AI Processing</h2>
-      <p>When you capture photos of document labels, food items, medicine strips, or receipts:</p>
+      <h2><span class="num">2</span> Hybrid On-Device OCR, Cloud AI &amp; Compressed Scan Backup</h2>
+      <p>When you capture or import photos of product labels, food items, medicine strips, or receipts:</p>
       <ul>
-        <li><strong>On-Device Machine Learning (Default):</strong> Optical Character Recognition (OCR) is performed entirely on your device using Google ML Kit's local neural engine. Scanned photos never leave your device for standard date detection.</li>
-        <li><strong>No Silent Background Transmissions:</strong> Photos and candidate text are never streamed to remote servers during standard capture.</li>
-        <li><strong>Optional Cloud AI Refinement (Gemini):</strong> For difficult, low-contrast, or multi-date packaging, Memora provides an optional "Analyze with AI" feature. This is triggered <em>strictly upon your manual, explicit tap</em> on the scan review bottom sheet. Images are transmitted securely over encrypted TLS solely for date extraction and are never retained, sold, or used for model training.</li>
+        <li><strong>On-Device Machine Learning (Default):</strong> Standard Optical Character Recognition (OCR) and date pairing are performed locally on your device using Google ML Kit.</li>
+        <li><strong>Explicit Cloud AI Refinement (Gemini):</strong> For difficult, low-contrast, or multi-date packaging, you may explicitly tap <em>"Analyze with AI"</em> on the scan review sheet. The image is transmitted over encrypted TLS to our Firebase Cloud Function strictly for date extraction and is never retained or used by Google for model training.</li>
+        <li><strong>Compressed Scan Evidence Backup:</strong> When you save a scanned memory, the raw camera photo is deleted from device storage, and a downscaled, GZIP-compressed copy (&lt;750 KB) along with extraction metadata is backed up privately under your account (<code>users/{uid}/scan_evidence</code>). Deleting a memory or your account permanently deletes its compressed scan backup.</li>
       </ul>
     </article>
 
@@ -269,16 +269,22 @@
         </thead>
         <tbody>
           <tr>
-            <td><strong>Personal Info</strong> (Name, Email)</td>
-            <td>Optional (only if signing in with Google)</td>
+            <td><strong>Personal Info</strong> (Name, Email, User ID)</td>
+            <td>Yes (required for account sign-in)</td>
             <td>No</td>
-            <td>Account authentication & optional cloud synchronization.</td>
+            <td>Account authentication &amp; private cross-device cloud synchronization.</td>
           </tr>
           <tr>
-            <td><strong>Photos & Documents</strong></td>
-            <td>No (processed locally on-device)</td>
+            <td><strong>Photos &amp; Documents</strong></td>
+            <td>Yes (when saving scanned items or tapping Analyze with AI)</td>
             <td>No</td>
-            <td>On-device OCR date and category extraction.</td>
+            <td>On-device OCR, optional explicit Gemini AI date extraction, and private compressed cloud backup in your user vault.</td>
+          </tr>
+          <tr>
+            <td><strong>Purchase &amp; Quota Status</strong></td>
+            <td>Yes (via Google Play Billing &amp; monthly scan count)</td>
+            <td>No</td>
+            <td>Verifying Memora Pro subscription status and enforcing the 5 free monthly scans limit. Payment cards/UPI are handled solely by Google Play.</td>
           </tr>
           <tr>
             <td><strong>Financial / Health Info</strong></td>
@@ -287,52 +293,56 @@
             <td>None.</td>
           </tr>
           <tr>
-            <td><strong>Device / Other IDs</strong></td>
-            <td>No advertising IDs</td>
+            <td><strong>Diagnostics &amp; App Info</strong></td>
+            <td>Yes (no advertising IDs)</td>
             <td>No</td>
-            <td>Firebase installation token (solely for crash diagnostics).</td>
+            <td>Firebase Crashlytics &amp; Analytics for crash diagnostics and app stability.</td>
           </tr>
         </tbody>
       </table>
     </article>
 
     <!-- Section 4 -->
-    <article class="card">
-      <h2><span class="num">4</span> Account Deletion & Data Erasure (Right to Erasure)</h2>
+    <article class="card" id="deletion">
+      <h2><span class="num">4</span> Account Deletion &amp; Data Erasure (Right to Erasure)</h2>
       <p>Under India's DPDP Act, 2023, EU GDPR, and Google Play Data Safety policies, you hold complete autonomy over your data.</p>
       
       <div class="deletion-box">
         <strong>How to Delete Your Account and Data:</strong>
         <ul style="margin-top: 8px; margin-bottom: 0;">
-          <li><strong>In-App Deletion:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Delete Account</em>. Confirming instantly removes your Google account authentication, purges your session, and wipes cloud-associated backup records.</li>
-          <li><strong>Erase Local Data:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Erase All Data</em> to permanently destroy all locally stored memories and images.</li>
-          <li><strong>Web / Email Deletion Request:</strong> You can also request complete deletion of your account and any associated data without opening the app by emailing <a href="mailto:privacy@memora.app">privacy@memora.app</a> or <a href="mailto:klabsstudios@gmail.com">klabsstudios@gmail.com</a> with the subject "Account Deletion Request". Requests are honored within 48 hours.</li>
+          <li><strong>In-App Account Deletion:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Delete Account</em>. Confirming permanently purges your Cloud Firestore subcollections (<code>memories</code>, <code>scan_evidence</code>, and <code>usage</code>), cancels all scheduled alarms, wipes local database tables, and removes your authentication session.</li>
+          <li><strong>Erase Local Data:</strong> Open <em>Settings &gt; Privacy &amp; Data &gt; Erase All Data</em> to immediately cancel scheduled alarms and wipe all locally stored memories, temporary captures, and diagnostic logs.</li>
+          <li><strong>Web / Email Deletion Request:</strong> You can also request complete deletion of your account and all associated cloud data without opening the app by emailing <a href="mailto:klabsstudios@gmail.com">klabsstudios@gmail.com</a> or <a href="mailto:privacy@memora.app">privacy@memora.app</a> with the subject "Account Deletion Request". Requests are honored within 48 hours.</li>
         </ul>
       </div>
     </article>
 
     <!-- Section 5 -->
     <article class="card">
-      <h2><span class="num">5</span> Device Permissions & Justifications</h2>
+      <h2><span class="num">5</span> Device Permissions &amp; Justifications</h2>
       <table>
         <thead>
           <tr>
             <th>Permission</th>
-            <th>Necessity & Usage</th>
+            <th>Necessity &amp; Usage</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td><code>CAMERA</code></td>
-            <td>Required strictly to capture product labels, warranty cards, and expiry dates inside the viewfinder. Photos are never uploaded without consent.</td>
+            <td>Required strictly to capture product labels, warranty cards, and expiry dates inside the viewfinder.</td>
           </tr>
           <tr>
             <td><code>POST_NOTIFICATIONS</code></td>
-            <td>Required to post local reminder alarms when an item is nearing its expiration date.</td>
+            <td>Required to post local expiry reminders, 6:00 PM due-today follow-ups, and optional weekly scan check-ins.</td>
           </tr>
           <tr>
             <td><code>SCHEDULE_EXACT_ALARM</code></td>
-            <td>Ensures notifications trigger accurately at your preferred reminder time (e.g., 09:00 AM).</td>
+            <td>Ensures morning expiry reminders and 3-hour snoozes trigger accurately without being killed by battery optimizers.</td>
+          </tr>
+          <tr>
+            <td><code>RECEIVE_BOOT_COMPLETED</code></td>
+            <td>Automatically restores your scheduled local reminders after a device restart or timezone change.</td>
           </tr>
         </tbody>
       </table>

@@ -117,20 +117,20 @@ fun PrivacyPolicyDialog(
                 ) {
                     PolicySectionItem(
                         number = "1",
-                        title = "Local-First Architecture & Optional Accounts",
-                        content = "• Guest Mode (Default): Memora operates 100% offline. Zero personal identifiers, passwords, phone numbers, or advertising IDs are collected.\n• Connected Account (Google): If you choose to sign in, we access only your basic Google profile (display name, email address, avatar) solely to verify your identity and manage optional cloud synchronization. We never sell, rent, or share your data with advertisers.",
+                        title = "Offline-First Architecture & Account Sign-In",
+                        content = "• Account Sign-In: Memora requires a Google or Email account to protect and synchronize your vault across sessions and devices.\n• Private Profile: When signing in with Google, we receive only your basic profile (display name, email, avatar) strictly for authentication. We never sell, rent, or share your data with advertisers.",
                     )
 
                     PolicySectionItem(
                         number = "2",
-                        title = "On-Device OCR & Intelligent AI Processing",
-                        content = "Primary optical character recognition (OCR) and date extraction run locally on your device using ML Kit, with optional Cloud Gemini AI refinement invoked only when explicitly confirmed.",
+                        title = "On-Device OCR, Gemini AI & Compressed Backup",
+                        content = "Primary optical character recognition (OCR) runs locally on your device using ML Kit. Optional Cloud Gemini AI refinement is invoked only when explicitly tapped. Saved scans delete the raw camera photo and store a GZIP-compressed backup (<750 KB) privately under your account.",
                     )
 
                     PolicySectionItem(
                         number = "3",
-                        title = "Storage & Cloud Sync",
-                        content = "• Local Storage: By default, your captured memories and reminder dates are saved exclusively in your device's secure private sandbox.\n• Cloud Sync: When signed into a Google Account, encrypted metadata may be synchronized to our secure cloud database under your unique user ID.",
+                        title = "Storage, Billing & Cloud Sync",
+                        content = "• Local & Cloud Sync: Memories and exact alarms run offline-first on your device and sync privately to your user-scoped Cloud Firestore vault.\n• Google Play Billing: Memora Pro subscriptions and the 5 free monthly scans quota are managed securely through Google Play Billing; Memora never sees your card or UPI details.",
                     )
 
                     PolicySectionItem(

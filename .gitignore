@@ -16,6 +16,7 @@ app/build
 .cxx
 local.properties
 .env
+.firebase/
 
 # Signing keys
 *.jks

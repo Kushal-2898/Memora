@@ -825,7 +825,7 @@ private fun SettingsAccountCard(
                 } else {
                     Icon(
                         imageVector = Icons.Outlined.Person,
-                        contentDescription = "Guest",
+                        contentDescription = "Account",
                         tint = PrimaryNavy,
                         modifier = Modifier.size(22.dp),
                     )
@@ -836,7 +836,7 @@ private fun SettingsAccountCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = currentUser?.displayName ?: "Guest User",
+                    text = currentUser?.displayName ?: "Not Signed In",
                     style = MemoraTypography.title.copy(fontSize = 15.sp),
                     color = PrimaryNavy,
                 )

@@ -129,7 +129,7 @@ fun ProfileBottomSheet(
                         } else {
                             Icon(
                                 imageVector = Icons.Outlined.Person,
-                                contentDescription = "Guest",
+                                contentDescription = "Account",
                                 tint = PrimaryNavy,
                                 modifier = Modifier.size(24.dp),
                             )
@@ -141,7 +141,7 @@ fun ProfileBottomSheet(
                     // User Info & Sync Status
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = currentUser?.displayName ?: "Guest User",
+                            text = currentUser?.displayName ?: "Not Signed In",
                             style = MemoraTypography.title.copy(fontSize = 17.sp),
                             color = PrimaryNavy,
                         )
